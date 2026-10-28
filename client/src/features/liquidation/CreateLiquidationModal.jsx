@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Image } from 'antd'
 import { Modal } from '../../components/ui/Modal'
-import { Plus, Trash2, Upload, X } from 'lucide-react'
+import { Plus, Trash2, Upload, X, Copy, ListPlus, AlertTriangle } from 'lucide-react'
 import RemoteSearchSelect from '../../components/ui/RemoteSearchSelect'
 
 const formatCurrency = (val) =>
@@ -23,13 +23,110 @@ const emptyItem = () => ({
   receipts: [],
 })
 
-// 11 tracks — one per header cell (Date, RT#, Store, Particulars, Purpose,
-// From, To, Transport, Amount, Receipts, Action). No cell may span more
-// than one track here, or the row runs out of tracks and CSS grid wraps
-// the overflow (Action) onto an implicit second row.
 const TRAVEL_GRID_COLS =
-  'grid-cols-[110px_65px_1.8fr_1.6fr_1.6fr_1.8fr_1.8fr_150px_90px_140px_45px]'
-const MISC_GRID_COLS = 'grid-cols-[110px_2.5fr_2fr_90px_140px_45px]'
+  'grid-cols-[110px_70px_190px_260px_260px_170px_170px_160px_110px_160px_110px]'
+// fr-based, not fixed px — MISC_GRID_COLS' container is w-full (see below),
+// so these need to actually stretch to fill it. Fixed px columns here was
+// the bug: they summed to less than the modal's real width and just left
+// blank space on the right instead of growing to fill it.
+const MISC_GRID_COLS = 'grid-cols-[110px_2.5fr_2fr_120px_180px_110px]'
+
+/**
+ * One line's own field-level validation problems — required fields only.
+ * The itinerary/chain rule (From must continue from the previous line's
+ * To, and the trip must arrive at Store by its last leg) is a SEPARATE,
+ * cross-row check — see getChainIssues below — since it can't be decided
+ * by looking at one line in isolation.
+ */
+function getItemIssues(it, isTravel, isEditMode) {
+  const issues = []
+  if (!it.date) issues.push('Date is required')
+  if (!it.particulars) issues.push('Particulars is required')
+  if (!it.purpose?.trim()) issues.push('Purpose is required')
+
+  if (isTravel) {
+    if (!it.rt) issues.push('RT# is required')
+    if (!it.store_name) issues.push('Store is required')
+    if (!it.from) issues.push('From is required')
+    if (!it.to) issues.push('To is required')
+    if (!it.mode_of_transportation_id) issues.push('Mode of transportation is required')
+  }
+
+  if (!parseFloat(it.amount) || parseFloat(it.amount) <= 0) {
+    issues.push('Amount must be greater than zero')
+  }
+  if (!isEditMode && (!it.receipts || it.receipts.length === 0)) {
+    issues.push('At least one receipt is required')
+  }
+
+  return issues
+}
+
+/**
+ * Itinerary/chain flag rule, across all lines: consecutive lines that
+ * share the same Store Name form ONE trip made of one or more legs
+ * (e.g. Store: PACITA — leg 1 VILLAGE→SAMPLE, leg 2 SAMPLE→PACITA).
+ * Within each such group:
+ *   - every leg after the first must start (From) exactly where the
+ *     previous leg ended (To) — the chain can't skip or jump
+ *   - the LAST leg in the group must end (To) at the group's Store —
+ *     the trip has to actually arrive there
+ * A group's first leg's From is never checked — that's the trip's real
+ * starting point (village/home base), not something tied to the store.
+ * Only contiguous rows with the same store_name form a group, so two
+ * separate trips to the same store with something else in between are
+ * validated as two independent single-leg trips, not one broken chain.
+ * Returns { [itemIndex]: string[] } to merge alongside getItemIssues.
+ */
+function getChainIssues(items) {
+  const chainIssues = {}
+  const flag = (index, message) => {
+    if (!chainIssues[index]) chainIssues[index] = []
+    chainIssues[index].push(message)
+  }
+
+  let groupStart = 0
+  for (let i = 1; i <= items.length; i++) {
+    const sameGroup =
+      i < items.length &&
+      items[i].store_name &&
+      items[i].store_name === items[groupStart].store_name
+    if (sameGroup) continue
+
+    // Group is items[groupStart..i-1] — validate its chain, then start
+    // the next group at i.
+    for (let j = groupStart + 1; j < i; j++) {
+      const prevTo = items[j - 1].to
+      if (prevTo && items[j].from && items[j].from !== prevTo) {
+        flag(j, `From must continue from the previous line's To (${prevTo})`)
+      }
+    }
+    const lastIndex = i - 1
+    const last = items[lastIndex]
+    if (last.store_name && last.to && last.to !== last.store_name) {
+      flag(lastIndex, `To must arrive at Store (${last.store_name}) to complete the trip`)
+    }
+
+    groupStart = i
+  }
+
+  return chainIssues
+}
+
+// Small badge shown on a line with problems — icon + native title tooltip
+// listing exactly what's wrong, so the person doesn't have to guess from
+// a single form-level message which line and which field to fix.
+function LineErrorBadge({ issues }) {
+  if (!issues || issues.length === 0) return null
+  return (
+    <span
+      className="absolute -top-2 -left-2 z-20 flex items-center justify-center w-5 h-5 bg-red-600 text-white rounded-full shadow-xs cursor-help"
+      title={issues.join('\n')}
+    >
+      <AlertTriangle className="w-3 h-3" />
+    </span>
+  )
+}
 
 export default function CreateLiquidationModal({
   isOpen,
@@ -52,8 +149,14 @@ export default function CreateLiquidationModal({
   const [liquidationType, setLiquidationType] = useState('TRAVEL')
   const [items, setItems] = useState([emptyItem()])
   const [formError, setFormError] = useState(null)
+  // { [itemIndex]: string[] } — only ever set on a submit attempt, and
+  // cleared per-line the moment that line is edited (see updateItem) or
+  // entirely on any structural change (add/remove/duplicate/insert),
+  // since indexes shift and a stale error mapped to the wrong row would
+  // be actively misleading.
+  const [lineErrors, setLineErrors] = useState({})
+  const rowRefs = useRef({})
 
-  // Store Name options (value/label = store_name only, matches prior behavior)
   const initialStoreOptions = useMemo(
     () =>
       districts.map((d) => ({
@@ -63,7 +166,6 @@ export default function CreateLiquidationModal({
     [districts],
   )
 
-  // From / To options — includes store number when available
   const initialLocationOptions = useMemo(
     () =>
       districts.map((d) => ({
@@ -84,9 +186,6 @@ export default function CreateLiquidationModal({
 
   const modeOptions = useMemo(() => modes.map((m) => ({ value: m.id, label: m.name })), [modes])
 
-  // Fallback local filters — used only if the parent hasn't wired up the
-  // real searchParticulars/searchModes endpoints yet, so the field still
-  // works during rollout instead of throwing.
   const searchParticularsLocal = async (term) => {
     const lower = term.toLowerCase()
     return particularOptions.filter((o) => o.label.toLowerCase().includes(lower))
@@ -104,6 +203,7 @@ export default function CreateLiquidationModal({
       setLiquidationType('TRAVEL')
       setItems([emptyItem()])
       setFormError(null)
+      setLineErrors({})
       return
     }
     if (editingLiquidation) {
@@ -125,6 +225,7 @@ export default function CreateLiquidationModal({
             }))
           : [emptyItem()],
       )
+      setLineErrors({})
     }
   }, [isOpen, editingLiquidation])
 
@@ -141,6 +242,7 @@ export default function CreateLiquidationModal({
 
   const handleTypeChange = (newType) => {
     setLiquidationType(newType)
+    setLineErrors({})
     if (newType === 'MISCELLANEOUS') {
       setItems((prev) =>
         prev.map((it) => ({
@@ -155,14 +257,53 @@ export default function CreateLiquidationModal({
     }
   }
 
-  const updateItem = (index, field, value) =>
+  const updateItem = (index, field, value) => {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, [field]: value } : it)))
+    // Clear this line's flags optimistically the moment it's touched —
+    // they're re-evaluated fresh on the next submit attempt anyway.
+    setLineErrors((prev) => {
+      if (!prev[index]) return prev
+      const next = { ...prev }
+      delete next[index]
+      return next
+    })
+  }
 
-  const addItem = () => setItems((prev) => [...prev, emptyItem()])
+  const addItem = () => {
+    setItems((prev) => [...prev, emptyItem()])
+    setLineErrors({})
+  }
 
   const removeItem = (index) => {
     if (items.length <= 1) return
     setItems((prev) => prev.filter((_, i) => i !== index))
+    setLineErrors({})
+  }
+
+  const duplicateItem = (index) => {
+    setItems((prev) => {
+      const source = prev[index]
+      const duplicate = {
+        ...emptyItem(),
+        date: source.date,
+        rt: source.rt,
+        store_name: source.store_name,
+        purpose: source.purpose,
+      }
+      const next = [...prev]
+      next.splice(index + 1, 0, duplicate)
+      return next
+    })
+    setLineErrors({})
+  }
+
+  const insertItemAfter = (index) => {
+    setItems((prev) => {
+      const next = [...prev]
+      next.splice(index + 1, 0, emptyItem())
+      return next
+    })
+    setLineErrors({})
   }
 
   const handleItemReceiptsChange = (index, files) => {
@@ -196,6 +337,12 @@ export default function CreateLiquidationModal({
           i === index ? { ...it, receipts: [...(it.receipts || []), ...newImages] } : it,
         ),
       )
+      setLineErrors((prev) => {
+        if (!prev[index]) return prev
+        const next = { ...prev }
+        delete next[index]
+        return next
+      })
     })
   }
 
@@ -213,26 +360,28 @@ export default function CreateLiquidationModal({
     e.preventDefault()
     setFormError(null)
 
-    for (const it of items) {
-      if (!it.date || !it.particulars || !it.purpose?.trim()) {
-        setFormError('Every line requires a date, particulars, and purpose.')
-        return
-      }
-      if (
-        isTravel &&
-        (!it.rt || !it.store_name || !it.from || !it.to || !it.mode_of_transportation_id)
-      ) {
-        setFormError('Every line requires RT#, store, from, to, and mode of transportation.')
-        return
-      }
-      if (!parseFloat(it.amount) || parseFloat(it.amount) <= 0) {
-        setFormError('Every line needs an amount greater than zero.')
-        return
-      }
-      if (!isEditMode && (!it.receipts || it.receipts.length === 0)) {
-        setFormError('Every line needs at least one receipt image.')
-        return
-      }
+    const errorsByIndex = {}
+    items.forEach((it, index) => {
+      const issues = getItemIssues(it, isTravel, isEditMode)
+      if (issues.length > 0) errorsByIndex[index] = issues
+    })
+    if (isTravel) {
+      const chainIssues = getChainIssues(items)
+      Object.entries(chainIssues).forEach(([index, issues]) => {
+        errorsByIndex[index] = [...(errorsByIndex[index] || []), ...issues]
+      })
+    }
+    setLineErrors(errorsByIndex)
+
+    const errorIndexes = Object.keys(errorsByIndex)
+    if (errorIndexes.length > 0) {
+      setFormError(
+        errorIndexes.length === 1
+          ? `Line ${Number(errorIndexes[0]) + 1} has a problem — see the highlighted row below.`
+          : `${errorIndexes.length} lines have problems — see the highlighted rows below.`,
+      )
+      rowRefs.current[errorIndexes[0]]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
     }
 
     const derivedDescription = isEditMode
@@ -336,7 +485,12 @@ export default function CreateLiquidationModal({
 
           <Image.PreviewGroup>
             <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-xs">
-              <div className={isTravel ? 'min-w-350 p-2 space-y-2' : 'min-w-225 p-2 space-y-2'}>
+              {/* Travel has 11 wide columns and needs to overflow-scroll
+                  (w-max shrink-wraps to that content). Miscellaneous has
+                  6 columns and should fill the modal (w-full) — the
+                  columns themselves use fr units above so they actually
+                  stretch to that full width instead of stopping short. */}
+              <div className={isTravel ? 'w-max p-2 space-y-2' : 'w-full p-2 space-y-2'}>
                 {/* TABLE HEADER */}
                 <div
                   className={`sticky top-0 z-10 bg-white grid gap-2 px-2 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 ${
@@ -355,7 +509,7 @@ export default function CreateLiquidationModal({
                       <div>Transport</div>
                       <div>Amount</div>
                       <div>Receipts</div>
-                      <div className="text-center">Action</div>
+                      <div className="text-center">Actions</div>
                     </>
                   ) : (
                     <>
@@ -364,196 +518,228 @@ export default function CreateLiquidationModal({
                       <div>Purpose</div>
                       <div>Amount</div>
                       <div>Receipts</div>
-                      <div className="text-center">Action</div>
+                      <div className="text-center">Actions</div>
                     </>
                   )}
                 </div>
 
                 {/* TABLE ROWS */}
-                {items.map((it, index) => (
-                  <div
-                    key={index}
-                    className={`grid gap-2 items-start p-1.5 bg-slate-50/70 hover:bg-slate-100/60 rounded-lg border border-slate-200/60 transition-colors ${
-                      isTravel ? TRAVEL_GRID_COLS : MISC_GRID_COLS
-                    }`}
-                  >
-                    {/* Date Input */}
-                    <div>
-                      <input
-                        type="date"
-                        required
-                        value={it.date}
-                        onChange={(e) => updateItem(index, 'date', e.target.value)}
-                        className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium focus:ring-1 focus:ring-[#E31837]"
-                      />
-                    </div>
+                {items.map((it, index) => {
+                  const issues = lineErrors[index]
+                  const hasError = Boolean(issues?.length)
+                  return (
+                    <div
+                      key={index}
+                      ref={(el) => {
+                        rowRefs.current[index] = el
+                      }}
+                      className={`relative grid gap-2 items-start p-1.5 rounded-lg border transition-colors ${
+                        isTravel ? TRAVEL_GRID_COLS : MISC_GRID_COLS
+                      } ${
+                        hasError
+                          ? 'bg-red-50/70 border-red-300 ring-1 ring-red-200'
+                          : 'bg-slate-50/70 hover:bg-slate-100/60 border-slate-200/60'
+                      }`}
+                    >
+                      <LineErrorBadge issues={issues} />
 
-                    {/* Travel Fields */}
-                    {isTravel && (
-                      <>
-                        <div>
-                          <input
-                            type="text"
-                            placeholder="RT#"
-                            required
-                            value={it.rt}
-                            onChange={(e) => updateItem(index, 'rt', e.target.value)}
-                            className="w-full px-1.5 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium focus:ring-1 focus:ring-[#E31837]"
-                          />
-                        </div>
-                        {/* No col-span here — Store Name owns its own track
-                            (widened via 1.8fr above) instead of eating a
-                            second track, which is what pushed Action onto
-                            a second row. */}
-                        <div>
-                          <RemoteSearchSelect
-                            value={it.store_name}
-                            onChange={(val) => updateItem(index, 'store_name', val)}
-                            fetchOptions={searchStores}
-                            initialOptions={initialStoreOptions}
-                            placeholder="Store..."
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {/* Particulars */}
-                    <div>
-                      <RemoteSearchSelect
-                        value={it.particulars}
-                        onChange={(val) => updateItem(index, 'particulars', val)}
-                        fetchOptions={resolvedSearchParticulars}
-                        initialOptions={particularOptions}
-                        placeholder="Select Particular..."
-                      />
-                    </div>
-
-                    {/* Purpose */}
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="What was this for?"
-                        required
-                        value={it.purpose}
-                        onChange={(e) => updateItem(index, 'purpose', e.target.value)}
-                        className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium focus:ring-1 focus:ring-[#E31837]"
-                      />
-                    </div>
-
-                    {/* Travel-only Location and Transport Inputs */}
-                    {isTravel && (
-                      <>
-                        <div>
-                          <RemoteSearchSelect
-                            value={it.from}
-                            onChange={(val) => updateItem(index, 'from', val)}
-                            fetchOptions={searchStores}
-                            initialOptions={initialLocationOptions}
-                            placeholder="From..."
-                          />
-                        </div>
-                        <div>
-                          <RemoteSearchSelect
-                            value={it.to}
-                            onChange={(val) => updateItem(index, 'to', val)}
-                            fetchOptions={searchStores}
-                            initialOptions={initialLocationOptions}
-                            placeholder="To..."
-                          />
-                        </div>
-                        <div>
-                          <RemoteSearchSelect
-                            value={it.mode_of_transportation_id}
-                            onChange={(val) => updateItem(index, 'mode_of_transportation_id', val)}
-                            fetchOptions={resolvedSearchModes}
-                            initialOptions={modeOptions}
-                            placeholder="Mode..."
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {/* Amount Field */}
-                    <div>
-                      <div className="relative">
-                        <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
-                          ₱
-                        </span>
+                      {/* Date Input */}
+                      <div>
                         <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
+                          type="date"
                           required
-                          placeholder="0.00"
-                          value={it.amount}
-                          onChange={(e) => updateItem(index, 'amount', e.target.value)}
-                          className="w-full pl-4 pr-1.5 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium focus:ring-1 focus:ring-[#E31837]"
+                          value={it.date}
+                          onChange={(e) => updateItem(index, 'date', e.target.value)}
+                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium focus:ring-1 focus:ring-[#E31837]"
                         />
                       </div>
-                    </div>
 
-                    {/* Receipt Upload & Previews */}
-                    <div>
-                      <div className="flex items-center gap-1.5 flex-wrap py-0.5 max-w-full">
-                        <label
-                          className="inline-flex items-center justify-center h-7 px-2 gap-1 bg-white border border-slate-300 hover:border-slate-400 rounded-md cursor-pointer shrink-0 text-[11px] text-slate-600 font-medium"
-                          title="Upload receipt(s) for this line"
-                        >
-                          <Upload className="w-3.5 h-3.5 text-slate-500" />
-                          <input
-                            type="file"
-                            multiple
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={(e) => handleItemReceiptsChange(index, e.target.files)}
-                            className="hidden"
-                          />
-                        </label>
-
-                        {(it.receipts || []).map((src, ri) => (
-                          <div
-                            key={ri}
-                            className="relative group w-8 h-8 rounded border border-slate-200 overflow-hidden bg-slate-100 shrink-0"
-                          >
-                            <Image
-                              src={src}
-                              width={32}
-                              height={32}
-                              style={{ objectFit: 'cover' }}
-                              preview={{
-                                mask: null,
-                              }}
+                      {/* Travel Fields */}
+                      {isTravel && (
+                        <>
+                          <div>
+                            <input
+                              type="text"
+                              placeholder="RT#"
+                              required
+                              value={it.rt}
+                              onChange={(e) => updateItem(index, 'rt', e.target.value)}
+                              className="w-full px-1.5 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium focus:ring-1 focus:ring-[#E31837]"
                             />
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                removeItemReceipt(index, ri)
-                              }}
-                              className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
-                              title="Remove"
-                            >
-                              <X className="w-2.5 h-2.5" />
-                            </button>
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                          <div>
+                            <RemoteSearchSelect
+                              value={it.store_name}
+                              onChange={(val) => updateItem(index, 'store_name', val)}
+                              fetchOptions={searchStores}
+                              initialOptions={initialStoreOptions}
+                              placeholder="Store..."
+                            />
+                          </div>
+                        </>
+                      )}
 
-                    {/* Remove Button */}
-                    <div className="flex justify-center items-center h-full">
-                      {items.length > 1 && (
+                      {/* Particulars */}
+                      <div>
+                        <RemoteSearchSelect
+                          value={it.particulars}
+                          onChange={(val) => updateItem(index, 'particulars', val)}
+                          fetchOptions={resolvedSearchParticulars}
+                          initialOptions={particularOptions}
+                          placeholder="Select Particular..."
+                        />
+                      </div>
+
+                      {/* Purpose */}
+                      <div>
+                        <input
+                          type="text"
+                          placeholder="What was this for?"
+                          required
+                          value={it.purpose}
+                          onChange={(e) => updateItem(index, 'purpose', e.target.value)}
+                          className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium focus:ring-1 focus:ring-[#E31837]"
+                        />
+                      </div>
+
+                      {/* Travel-only Location and Transport Inputs */}
+                      {isTravel && (
+                        <>
+                          <div>
+                            <RemoteSearchSelect
+                              value={it.from}
+                              onChange={(val) => updateItem(index, 'from', val)}
+                              fetchOptions={searchStores}
+                              initialOptions={initialLocationOptions}
+                              placeholder="From..."
+                            />
+                          </div>
+                          <div>
+                            <RemoteSearchSelect
+                              value={it.to}
+                              onChange={(val) => updateItem(index, 'to', val)}
+                              fetchOptions={searchStores}
+                              initialOptions={initialLocationOptions}
+                              placeholder="To..."
+                            />
+                          </div>
+                          <div>
+                            <RemoteSearchSelect
+                              value={it.mode_of_transportation_id}
+                              onChange={(val) =>
+                                updateItem(index, 'mode_of_transportation_id', val)
+                              }
+                              fetchOptions={resolvedSearchModes}
+                              initialOptions={modeOptions}
+                              placeholder="Mode..."
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* Amount Field - Arrow hidden & blocked invalid characters */}
+                      <div>
+                        <div className="relative">
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                            ₱
+                          </span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            required
+                            placeholder="0.00"
+                            value={it.amount}
+                            onKeyDown={(e) => {
+                              if (['e', 'E', '+', '-'].includes(e.key)) {
+                                e.preventDefault()
+                              }
+                            }}
+                            onChange={(e) => updateItem(index, 'amount', e.target.value)}
+                            className="w-full pl-4 pr-1.5 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium focus:ring-1 focus:ring-[#E31837] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Receipt Upload & Previews - Remove icon positioned outside */}
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap py-1 max-w-full">
+                          <label
+                            className="inline-flex items-center justify-center h-8 px-2 gap-1 bg-white border border-slate-300 hover:border-slate-400 rounded-md cursor-pointer shrink-0 text-[11px] text-slate-600 font-medium"
+                            title="Upload receipt(s) for this line"
+                          >
+                            <Upload className="w-3.5 h-3.5 text-slate-500" />
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(e) => handleItemReceiptsChange(index, e.target.files)}
+                              className="hidden"
+                            />
+                          </label>
+
+                          {(it.receipts || []).map((src, ri) => (
+                            <div
+                              key={ri}
+                              className="relative group w-8 h-8 rounded border border-slate-200 overflow-visible bg-slate-100 shrink-0"
+                            >
+                              <Image
+                                src={src}
+                                width={32}
+                                height={32}
+                                style={{ objectFit: 'cover', borderRadius: '4px' }}
+                                preview={{
+                                  mask: null,
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  removeItemReceipt(index, ri)
+                                }}
+                                className="absolute -top-1.5 -right-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-20 shadow-xs"
+                                title="Remove"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Row Actions */}
+                      <div className="flex justify-center items-center gap-1 h-full">
                         <button
                           type="button"
-                          onClick={() => removeItem(index)}
-                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer shrink-0"
-                          title="Remove line"
+                          onClick={() => duplicateItem(index)}
+                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer shrink-0"
+                          title="Duplicate line (copies Date, RT#, Store, and Purpose)"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Copy className="w-3.5 h-3.5" />
                         </button>
-                      )}
+                        <button
+                          type="button"
+                          onClick={() => insertItemAfter(index)}
+                          className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors cursor-pointer shrink-0"
+                          title="Insert a blank line right after this one"
+                        >
+                          <ListPlus className="w-3.5 h-3.5" />
+                        </button>
+                        {items.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeItem(index)}
+                            className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer shrink-0"
+                            title="Remove line"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </Image.PreviewGroup>

@@ -31,7 +31,7 @@ export default function UnifiedLayout({ children }) {
   const handleCloseMobile = () => setIsMobileOpen(false)
 
   return (
-    <div className="flex h-screen w-full bg-slate-100 text-slate-800 antialiased overflow-hidden">
+    <div className="flex h-screen w-full bg-[#F9F6F0] text-slate-800 antialiased overflow-hidden">
       {/* Unified Shell Outer Frame */}
       <div className="relative flex h-full w-full overflow-hidden">
         {/* Single Unified Sidebar Instance */}

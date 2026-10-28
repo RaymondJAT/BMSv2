@@ -11,9 +11,6 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
   const shouldReduceMotion = useReducedMotion()
   const { canAccessRoute } = useAuth()
 
-  // Single source of truth: same canAccessRoute the router guard in
-  // _authenticated.jsx uses. A route hidden here is also blocked there,
-  // and vice versa — see that file's comment.
   const visibleNavItems = useMemo(() => {
     return NAVIGATION_ITEMS.reduce((acc, item) => {
       if (item.type === 'link') {
@@ -33,7 +30,6 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
     }, [])
   }, [canAccessRoute])
 
-  // Initialize all dropdowns closed by default
   const [openMenus, setOpenMenus] = useState(() => {
     const initialState = {}
     visibleNavItems.forEach((item) => {
@@ -63,7 +59,9 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
       const rect = e.currentTarget.getBoundingClientRect()
       setFlyout({
         id: item.id,
+        type: item.type,
         title: item.title,
+        to: item.to,
         children: item.children || [],
         top: rect.top,
         left: rect.right + 8,
@@ -110,7 +108,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onCloseMobile}
-            className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs lg:hidden"
+            className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs lg:hidden"
             aria-hidden="true"
           />
         )}
@@ -123,18 +121,19 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
         className={`
           fixed lg:static top-0 left-0 bottom-0 
           ${isMobile ? 'z-50 h-full w-72' : 'z-30'} 
-          flex flex-col bg-white border-r border-slate-200/80 shadow-lg lg:shadow-xs
-          shrink-0 select-none overflow-hidden
+          flex flex-col bg-[#4A0404] border-r border-rose-950/60 shadow-md
+          shrink-0 select-none overflow-hidden text-[#FFE4E6]
         `}
         aria-label="Main Navigation"
       >
-        <div className="flex h-16 items-center justify-between px-4 border-b border-slate-200/80 shrink-0">
+        {/* Header Branding */}
+        <div className="flex h-16 items-center justify-between px-4 border-b border-rose-900/40 shrink-0">
           <Link
             to="/dashboard"
             onClick={handleLinkClick}
             className="flex items-center gap-3 overflow-hidden outline-none"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#E31837] text-white shadow-xs">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white border border-white/10 shadow-xs">
               <Layers className="h-5 w-5" />
             </div>
 
@@ -144,10 +143,10 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
               animate={isOpen || isMobile ? 'expanded' : 'collapsed'}
               className="whitespace-nowrap min-w-0"
             >
-              <span className="font-extrabold text-slate-900 tracking-tight text-base block leading-tight">
+              <span className="font-extrabold text-white tracking-tight text-base block leading-tight">
                 BMS Admin
               </span>
-              <span className="block text-[10px] text-slate-400 font-semibold tracking-wider uppercase">
+              <span className="block text-[10px] text-rose-200 font-bold tracking-wider uppercase">
                 Enterprise
               </span>
             </motion.div>
@@ -156,7 +155,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
           {isMobile && (
             <button
               onClick={onCloseMobile}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors lg:hidden"
+              className="p-1.5 rounded-lg text-rose-100 hover:text-white hover:bg-white/10 transition-colors lg:hidden"
               aria-label="Close sidebar"
             >
               <X className="h-5 w-5" />
@@ -164,28 +163,33 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
           )}
         </div>
 
-        <nav className="custom-scrollbar flex-1 space-y-1.5 p-3 overflow-y-auto overflow-x-hidden">
+        {/* Navigation List */}
+        <nav className="custom-scrollbar flex-1 space-y-1 py-3 px-2.5 overflow-y-auto overflow-x-hidden">
           {visibleNavItems.map((item) => {
             const Icon = item.icon
 
             if (item.type === 'link') {
               return (
-                <div key={item.id}>
+                <div
+                  key={item.id}
+                  onMouseEnter={(e) => handleFlyoutOpen(item, e)}
+                  onMouseLeave={handleFlyoutCloseScheduled}
+                >
                   <Link
                     to={item.to}
                     onClick={handleLinkClick}
-                    activeProps={{ className: 'bg-red-50 text-[#E31837] font-semibold' }}
+                    activeProps={{ className: 'bg-white/20 text-white font-bold shadow-xs' }}
                     inactiveProps={{
-                      className: 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                      className: 'text-[#FFE4E6] hover:bg-white/10 hover:text-white',
                     }}
-                    className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-200 ease-in-out focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none"
+                    className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-200 ease-in-out focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:outline-none"
                   >
                     <motion.div
-                      whileHover={shouldReduceMotion ? {} : { x: 3 }}
+                      whileHover={shouldReduceMotion ? {} : { x: 2 }}
                       transition={{ duration: 0.15 }}
                       className="flex items-center justify-center shrink-0"
                     >
-                      <Icon className="h-5 w-5 transition-colors duration-200 group-hover:text-slate-900" />
+                      <Icon className="h-5 w-5 transition-colors duration-200 text-rose-200 group-hover:text-white" />
                     </motion.div>
 
                     <motion.span
@@ -218,17 +222,17 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                       }
                       toggleDropdown(item.id)
                     }}
-                    className="group flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none"
+                    className="group flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-[#FFE4E6] transition-all duration-200 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:outline-none"
                     aria-expanded={isCollapsed ? flyout?.id === item.id : isDropdownOpen}
                     aria-haspopup={isCollapsed ? 'menu' : undefined}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <motion.div
-                        whileHover={shouldReduceMotion ? {} : { x: 3 }}
+                        whileHover={shouldReduceMotion ? {} : { x: 2 }}
                         transition={{ duration: 0.15 }}
                         className="flex items-center justify-center shrink-0"
                       >
-                        <Icon className="h-5 w-5 transition-colors duration-200 group-hover:text-slate-900" />
+                        <Icon className="h-5 w-5 transition-colors duration-200 text-rose-200 group-hover:text-white" />
                       </motion.div>
                       <motion.span
                         variants={shouldReduceMotion ? {} : labelVariants}
@@ -244,7 +248,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                       <motion.div
                         animate={{ rotate: isDropdownOpen ? 180 : 0 }}
                         transition={{ duration: 0.2, ease: 'easeInOut' }}
-                        className="text-slate-400 shrink-0"
+                        className="text-rose-200 shrink-0 group-hover:text-white"
                       >
                         <ChevronDown className="h-4 w-4" />
                       </motion.div>
@@ -259,18 +263,18 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                         animate="open"
                         exit="closed"
                         variants={shouldReduceMotion ? {} : dropdownVariants}
-                        className="ml-8 mt-1 space-y-1 overflow-hidden border-l-2 border-slate-100 pl-2"
+                        className="ml-6 mt-1 space-y-0.5 border-l border-rose-700/60 pl-2 overflow-hidden"
                       >
                         {item.children?.map((child) => (
                           <Link
                             key={child.id}
                             to={child.to}
                             onClick={handleLinkClick}
-                            activeProps={{ className: 'text-[#E31837] font-semibold bg-red-50' }}
+                            activeProps={{ className: 'text-white font-bold bg-white/20' }}
                             inactiveProps={{
-                              className: 'text-slate-500 hover:text-slate-900 hover:bg-slate-50',
+                              className: 'text-rose-100 hover:text-white hover:bg-white/10',
                             }}
-                            className="block rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200 hover:translate-x-1 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none"
+                            className="block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all duration-200 hover:translate-x-0.5 focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:outline-none"
                           >
                             {child.title}
                           </Link>
@@ -287,6 +291,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
         </nav>
       </motion.aside>
 
+      {/* Flyout Portal for Collapsed Sidebar */}
       {isCollapsed &&
         flyout &&
         createPortal(
@@ -294,31 +299,47 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
             style={{ position: 'fixed', top: flyout.top, left: flyout.left, zIndex: 60 }}
             onMouseEnter={clearCloseTimeout}
             onMouseLeave={handleFlyoutCloseScheduled}
-            className="min-w-48 rounded-xl border border-slate-200/80 bg-white p-2 shadow-lg"
+            className="min-w-40 rounded-xl border border-[#E8E5DF] bg-white p-2 shadow-lg"
           >
-            <div className="px-2 pb-1.5 mb-1 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              {flyout.title}
-            </div>
-            <div className="space-y-0.5">
-              {flyout.children.length === 0 ? (
-                <p className="px-2 py-1.5 text-xs text-slate-400">No items</p>
-              ) : (
-                flyout.children.map((child) => (
-                  <Link
-                    key={child.id}
-                    to={child.to}
-                    onClick={handleLinkClick}
-                    activeProps={{ className: 'text-[#E31837] font-semibold bg-red-50' }}
-                    inactiveProps={{
-                      className: 'text-slate-600 hover:text-slate-900 hover:bg-slate-50',
-                    }}
-                    className="block rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors"
-                  >
-                    {child.title}
-                  </Link>
-                ))
-              )}
-            </div>
+            {flyout.type === 'link' ? (
+              <Link
+                to={flyout.to}
+                onClick={handleLinkClick}
+                activeProps={{ className: 'text-[#800020] font-bold bg-[#F7EBEB]' }}
+                inactiveProps={{
+                  className: 'text-slate-800 hover:text-[#660019] hover:bg-[#F3EFE6]',
+                }}
+                className="block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors"
+              >
+                {flyout.title}
+              </Link>
+            ) : (
+              <>
+                <div className="px-2 pb-1.5 mb-1 border-b border-[#E8E5DF] text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  {flyout.title}
+                </div>
+                <div className="space-y-0.5">
+                  {flyout.children.length === 0 ? (
+                    <p className="px-2 py-1.5 text-xs text-slate-400">No items</p>
+                  ) : (
+                    flyout.children.map((child) => (
+                      <Link
+                        key={child.id}
+                        to={child.to}
+                        onClick={handleLinkClick}
+                        activeProps={{ className: 'text-[#800020] font-bold bg-[#F7EBEB]' }}
+                        inactiveProps={{
+                          className: 'text-slate-700 hover:text-[#660019] hover:bg-[#F3EFE6]',
+                        }}
+                        className="block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                      >
+                        {child.title}
+                      </Link>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
           </div>,
           document.body,
         )}

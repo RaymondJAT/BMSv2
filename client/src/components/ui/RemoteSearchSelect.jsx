@@ -59,15 +59,23 @@ export default function RemoteSearchSelect({
     }, DEBOUNCE_MS)
   }
 
+  const handleClear = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    setOptions(initialOptions)
+    setLoading(false)
+  }
+
   return (
     <Select
       showSearch
+      allowClear
       value={value || undefined}
       placeholder={placeholder}
       disabled={disabled}
       filterOption={false}
       onSearch={handleSearch}
       onChange={onChange}
+      onClear={handleClear}
       notFoundContent={loading ? <Spin size="small" /> : 'No results'}
       options={options}
       size="small"
