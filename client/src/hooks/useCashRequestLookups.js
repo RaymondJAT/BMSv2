@@ -8,6 +8,7 @@ import { masterUserApi } from '../api/masterUserApi'
 import { masterProjectApi } from '../api/masterProjectApi'
 import { unwrapSettled, unwrapList } from '../utils/apiResponse'
 import { findDepartmentName, findEmployeeName, findFundLabel } from '../utils/lookupHelpers'
+import { getAllTimeRange } from '../utils/dateRange'
 
 const INITIAL_PARTICULARS_LIMIT = 20
 const SEARCH_PARTICULARS_LIMIT = 20
@@ -36,6 +37,10 @@ const normalizeRoleName = (name) =>
  * accessRoles/routeAccess are deliberately NOT fetched — nothing on this
  * page reads a roles map. districts/modes/searchStores/searchModes still
  * come from useLiquidationMasterData, untouched by this hook.
+ *
+ * Funds are fetched ALL-TIME: the backend defaults to today's funds when
+ * no date range is sent, which would make getFundLabel miss any fund
+ * started on an earlier date.
  */
 export function useCashRequestLookups() {
   const [revolvingFunds, setRevolvingFunds] = useState([])
@@ -52,9 +57,10 @@ export function useCashRequestLookups() {
     setIsLoading(true)
     setError(null)
     try {
+      const allTime = getAllTimeRange()
       const [rfRes, budgetRes, deptRes, empRes, partRes, userRes, projectRes] =
         await Promise.allSettled([
-          revolvingFundApi.getAll(),
+          revolvingFundApi.getAll({ dateFrom: allTime.from, dateTo: allTime.to }),
           budgetApi.getAll(),
           masterDepartmentApi.getAll(),
           masterEmployeeApi.getAll(),

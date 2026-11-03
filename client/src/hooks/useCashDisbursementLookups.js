@@ -3,6 +3,7 @@ import { revolvingFundApi } from '../api/revolvingFundApi'
 import { budgetApi } from '../api/budgetApi'
 import { masterDepartmentApi } from '../api/masterDepartmentApi'
 import { masterEmployeeApi } from '../api/masterEmployeeApi'
+import { getAllTimeRange } from '../utils/dateRange'
 
 /**
  * Cash Disbursement page's lookup hook. Trimmed from the original
@@ -16,6 +17,10 @@ import { masterEmployeeApi } from '../api/masterEmployeeApi'
  * useCashRequestLookups / useLiquidationLookups / useAccessLookups,
  * scoped to the routes that actually read them. Same fetch pattern
  * (Promise.allSettled + unwrap) as before, just fewer calls.
+ *
+ * Funds are fetched ALL-TIME: the backend defaults to today's funds when
+ * no date range is sent, which would make getFundLabel return "Unknown
+ * Fund" for any disbursement from an earlier date.
  */
 export function useCashDisbursementLookups() {
   const [revolvingFunds, setRevolvingFunds] = useState([])
@@ -29,8 +34,9 @@ export function useCashDisbursementLookups() {
     setIsLoading(true)
     setError(null)
     try {
+      const allTime = getAllTimeRange()
       const [rfRes, budgetRes, deptRes, empRes] = await Promise.allSettled([
-        revolvingFundApi.getAll(),
+        revolvingFundApi.getAll({ dateFrom: allTime.from, dateTo: allTime.to }),
         budgetApi.getAll(),
         masterDepartmentApi.getAll(),
         masterEmployeeApi.getAll(),

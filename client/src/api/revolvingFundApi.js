@@ -1,8 +1,10 @@
 import { apiClient } from './axios'
+import { withDateParams } from './dateParams'
 
 export const revolvingFundApi = {
+  // dateFrom/dateTo are converted to the backend's date_from/date_to.
   getAll: async (params = {}) => {
-    const response = await apiClient.get('/revolving-fund', { params })
+    const response = await apiClient.get('/revolving-fund', { params: withDateParams(params) })
     return response.data || []
   },
   getActivity: async (revolvingFundId) => {

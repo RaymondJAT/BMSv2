@@ -122,7 +122,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
           fixed lg:static top-0 left-0 bottom-0 
           ${isMobile ? 'z-50 h-full w-72' : 'z-30'} 
           flex flex-col bg-[#4A0404] border-r border-rose-950/60 shadow-md
-          shrink-0 select-none overflow-hidden text-[#FFE4E6]
+          shrink-0 select-none overflow-hidden text-stone-100
         `}
         aria-label="Main Navigation"
       >
@@ -146,7 +146,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
               <span className="font-extrabold text-white tracking-tight text-base block leading-tight">
                 BMS Admin
               </span>
-              <span className="block text-[10px] text-rose-200 font-bold tracking-wider uppercase">
+              <span className="block text-[10px] text-stone-300 font-bold tracking-wider uppercase">
                 Enterprise
               </span>
             </motion.div>
@@ -155,7 +155,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
           {isMobile && (
             <button
               onClick={onCloseMobile}
-              className="p-1.5 rounded-lg text-rose-100 hover:text-white hover:bg-white/10 transition-colors lg:hidden"
+              className="p-1.5 rounded-lg text-stone-200 hover:text-white hover:bg-white/10 transition-colors lg:hidden"
               aria-label="Close sidebar"
             >
               <X className="h-5 w-5" />
@@ -180,16 +180,16 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                     onClick={handleLinkClick}
                     activeProps={{ className: 'bg-white/20 text-white font-bold shadow-xs' }}
                     inactiveProps={{
-                      className: 'text-[#FFE4E6] hover:bg-white/10 hover:text-white',
+                      className: 'text-stone-100 hover:bg-white/10 hover:text-white',
                     }}
-                    className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-200 ease-in-out focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:outline-none"
+                    className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-200 ease-in-out focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none"
                   >
                     <motion.div
                       whileHover={shouldReduceMotion ? {} : { x: 2 }}
                       transition={{ duration: 0.15 }}
                       className="flex items-center justify-center shrink-0"
                     >
-                      <Icon className="h-5 w-5 transition-colors duration-200 text-rose-200 group-hover:text-white" />
+                      <Icon className="h-5 w-5 transition-colors duration-200 text-stone-300 group-hover:text-white" />
                     </motion.div>
 
                     <motion.span
@@ -222,7 +222,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                       }
                       toggleDropdown(item.id)
                     }}
-                    className="group flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-[#FFE4E6] transition-all duration-200 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:outline-none"
+                    className="group flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-stone-100 transition-all duration-200 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none"
                     aria-expanded={isCollapsed ? flyout?.id === item.id : isDropdownOpen}
                     aria-haspopup={isCollapsed ? 'menu' : undefined}
                   >
@@ -232,7 +232,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                         transition={{ duration: 0.15 }}
                         className="flex items-center justify-center shrink-0"
                       >
-                        <Icon className="h-5 w-5 transition-colors duration-200 text-rose-200 group-hover:text-white" />
+                        <Icon className="h-5 w-5 transition-colors duration-200 text-stone-300 group-hover:text-white" />
                       </motion.div>
                       <motion.span
                         variants={shouldReduceMotion ? {} : labelVariants}
@@ -248,7 +248,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                       <motion.div
                         animate={{ rotate: isDropdownOpen ? 180 : 0 }}
                         transition={{ duration: 0.2, ease: 'easeInOut' }}
-                        className="text-rose-200 shrink-0 group-hover:text-white"
+                        className="text-stone-300 shrink-0 group-hover:text-white"
                       >
                         <ChevronDown className="h-4 w-4" />
                       </motion.div>
@@ -263,7 +263,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                         animate="open"
                         exit="closed"
                         variants={shouldReduceMotion ? {} : dropdownVariants}
-                        className="ml-6 mt-1 space-y-0.5 border-l border-rose-700/60 pl-2 overflow-hidden"
+                        className="ml-6 mt-1 space-y-0.5 border-l border-white/20 pl-2 overflow-hidden"
                       >
                         {item.children?.map((child) => (
                           <Link
@@ -272,9 +272,9 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                             onClick={handleLinkClick}
                             activeProps={{ className: 'text-white font-bold bg-white/20' }}
                             inactiveProps={{
-                              className: 'text-rose-100 hover:text-white hover:bg-white/10',
+                              className: 'text-stone-200 hover:text-white hover:bg-white/10',
                             }}
-                            className="block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all duration-200 hover:translate-x-0.5 focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:outline-none"
+                            className="block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all duration-200 hover:translate-x-0.5 focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none"
                           >
                             {child.title}
                           </Link>

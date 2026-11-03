@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import DataTable from '../../../components/ui/DataTable'
 import StatCard from '../../../components/ui/StatCard'
 import {
@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { createRouteColumns } from '../../../table-columns/routeColumns'
 import EditRouteAccessModal from '../../../features/route-access/EditRouteAccessModal'
-import { useCashDisbursementLookups } from '../../../hooks/useCashDisbursementLookups'
+import { useRouteAccess } from '../../../hooks/useRouteAccess'
 import { routeAccessApi } from '../../../api/routeAccessApi'
 
 export const Route = createFileRoute('/_authenticated/master/routeAccess')({
@@ -30,7 +30,7 @@ function RouteAccessPage() {
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { routeAccess = [], isLoading, error, refetch } = useCashDisbursementLookups()
+  const { routeAccess = [], isLoading, error, refetch } = useRouteAccess()
 
   const handleEdit = useCallback((row) => {
     setSelectedRoute(row)
@@ -44,7 +44,7 @@ function RouteAccessPage() {
 
   const handleUpdateStatus = useCallback(
     async ({ status }) => {
-      const id = selectedRoute?.mra_id || selectedRoute?.id
+      const id = selectedRoute?.id || selectedRoute?.mra_id
       if (!id) {
         return { success: false, message: 'Could not determine which route to update.' }
       }
@@ -69,13 +69,11 @@ function RouteAccessPage() {
     setSelectedIds(keys)
   }, [])
 
-  // Metrics counters for StatCards — this page tracks ACTIVE/INACTIVE
-  // route entries, not FULL-ACCESS/NO-ACCESS (that's per-role and lives
-  // on the Access page's permission editor instead).
+  // Metrics counters for StatCards
   const metrics = useMemo(() => {
     const total = routeAccess.length
     const active = routeAccess.filter((r) => {
-      const status = r.mra_status || r.status || 'INACTIVE'
+      const status = r.status || r.mra_status || 'INACTIVE'
       return String(status).toUpperCase() === 'ACTIVE'
     }).length
     const inactive = total - active
@@ -86,10 +84,10 @@ function RouteAccessPage() {
   const filteredRouteAccess = useMemo(() => {
     return routeAccess.filter((item) => {
       const q = searchTerm.toLowerCase()
-      const name = (item.mra_name || item.name || '').toLowerCase()
+      const name = (item.name || item.mra_name || '').toLowerCase()
 
       const matchesSearch = name.includes(q)
-      const currentStatus = (item.mra_status || item.status || 'INACTIVE').toUpperCase()
+      const currentStatus = (item.status || item.mra_status || 'INACTIVE').toUpperCase()
       const matchesStatus = statusFilter === 'ALL' || currentStatus === statusFilter
 
       return matchesSearch && matchesStatus
@@ -198,7 +196,7 @@ function RouteAccessPage() {
           <DataTable
             columns={columns}
             data={filteredRouteAccess}
-            keyExtractor={(row) => row.mra_id || row.id}
+            keyExtractor={(row) => row.id || row.mra_id || row.name}
             selectable={false}
             selectedRows={selectedIds}
             onSelectionChange={handleSelectionChange}
@@ -215,7 +213,6 @@ function RouteAccessPage() {
                   Showing {filteredRouteAccess.length} entries
                   {selectedIds.length > 0 && ` (${selectedIds.length} selected)`}
                 </span>
-                <span>Fiscal Year 2026</span>
               </div>
             }
           />

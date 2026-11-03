@@ -180,7 +180,6 @@ export default function EmployeesPage() {
                   Showing {filteredEmployees.length} entries
                   {selectedIds.length > 0 && ` (${selectedIds.length} selected)`}
                 </span>
-                <span>Fiscal Year 2026</span>
               </div>
             }
           />

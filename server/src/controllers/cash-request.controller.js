@@ -1,4 +1,5 @@
 const { Query, Transaction, SQLQueryBuilder } = require('../database/utilities/queries.util')
+const { resolveDateRange, addDateCondition } = require('../utilities/dateRange.util')
 const { Cash } = require('../database/models/Cash')
 const { Revolving } = require('../database/models/Revolving')
 const { hasOutstandingLiquidation } = require('./liquidation-liquidation.controller')
@@ -972,8 +973,9 @@ const checkCashRequestEligibility = async (req, res) => {
 
 /**
  * @name getCashRequest
- * @description Get Cash Request records, optionally filtered by status or
- *              requesting employee. Enriched with LEFT-JOINed Cash
+ * @description Daily view: defaults to TODAY's Cash Requests (by
+ *              request_date). Pass date_from / date_to to look back.
+ *              Enriched with LEFT-JOINed Cash
  *              Disbursement and Liquidation info so the frontend can
  *              decide, without a second round-trip:
  *                - disbursement_amount / cash_disbursement_id: what a
@@ -989,13 +991,18 @@ const checkCashRequestEligibility = async (req, res) => {
  */
 const getCashRequest = async (req, res) => {
   // #swagger.tags = ['Cash Request']
-  // #swagger.description = 'Get Cash Request records, optionally filtered by status or employee_id. Includes joined disbursement and liquidation info.'
+  // #swagger.description = 'Get Cash Request records. Defaults to TODAY (by request_date); pass date_from/date_to to look back. Includes joined disbursement and liquidation info.'
   /*
     #swagger.parameters['status'] = { in: 'query', type: 'string', required: false, description: 'Filter by cash request status (PENDING, APPROVED, REJECTED, COMPLETED)' }
     #swagger.parameters['employee_id'] = { in: 'query', type: 'integer', required: false, description: 'Filter by requesting employee id' }
+    #swagger.parameters['date_from'] = { in: 'query', type: 'string', required: false, description: 'Start date (YYYY-MM-DD, inclusive). Defaults to today.' }
+    #swagger.parameters['date_to'] = { in: 'query', type: 'string', required: false, description: 'End date (YYYY-MM-DD, inclusive). Defaults to today.' }
   */
 
   const { status, employee_id } = req.query
+
+  const range = resolveDateRange(req.query)
+  if (range.error) return respond.badRequest(res, range.error)
 
   try {
     const conditions = []
@@ -1008,6 +1015,7 @@ const getCashRequest = async (req, res) => {
       conditions.push('cr.cr_employee_id = ?')
       params.push(employee_id)
     }
+    addDateCondition('cr.cr_request_date', range, conditions, params)
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
     const rows = await Query(

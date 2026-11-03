@@ -5,14 +5,14 @@ import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 /**
  * Reusable Compact Stat Card for Dashboard & Module Metrics
  *
- * @param {string} title - Label (e.g. "Total Budget", "Requests")
- * @param {string|number} value - Main metric (e.g. "₱1,250,000", "48")
- * @param {React.ElementType} [icon] - Lucide icon component
- * @param {string} [subtitle] - Secondary helper text (e.g. "vs. last month")
- * @param {string|number} [trend] - Trend percentage or label (e.g. "+12.5%")
- * @param {'up'|'down'|'neutral'} [trendDirection='up'] - Direction of trend indicator
- * @param {'red'|'blue'|'emerald'|'amber'|'purple'|'slate'} [variant='red'] - Color theme
- * @param {boolean} [loading=false] - Skeleton loader state
+ * @param {string} title (e.g. "Total Budget", "Requests")
+ * @param {string|number} value (e.g. "₱1,250,000", "48")
+ * @param {React.ElementType} [icon] Lucide icon component
+ * @param {string} [subtitle] Secondary helper text (e.g. "vs. last month")
+ * @param {string|number} [trend] Trend percentage or label (e.g. "+12.5%")
+ * @param {'up'|'down'|'neutral'} [trendDirection='up'] Direction of trend indicator
+ * @param {'red'|'blue'|'emerald'|'amber'|'purple'|'slate'} [variant='red'] Color theme
+ * @param {boolean} [loading=false] Skeleton loader state
  */
 export default function StatCard({
   title,
@@ -50,13 +50,13 @@ export default function StatCard({
 
   if (loading) {
     return (
-      <div className="animate-pulse rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
+      <div className="animate-pulse rounded-xl border border-slate-200/80 bg-[#F9F6F0] p-3 shadow-2xs">
         <div className="flex items-center justify-between">
-          <div className="h-3 w-20 rounded bg-slate-200" />
-          <div className="h-7 w-7 rounded-lg bg-slate-100" />
+          <div className="h-3 w-20 rounded bg-slate-200/80" />
+          <div className="h-7 w-7 rounded-lg bg-slate-200/80" />
         </div>
-        <div className="mt-2 h-5 w-28 rounded-md bg-slate-200" />
-        <div className="mt-2 h-2.5 w-16 rounded bg-slate-100" />
+        <div className="mt-2 h-5 w-28 rounded-md bg-slate-200/80" />
+        <div className="mt-2 h-2.5 w-16 rounded bg-slate-200/80" />
       </div>
     )
   }
@@ -65,7 +65,7 @@ export default function StatCard({
     <motion.div
       whileHover={{ y: -1.5 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs hover:shadow-xs hover:border-rose-900/20 transition-all duration-200"
+      className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/80 bg-[#FFFFFF] p-3 shadow-2xs hover:shadow-xs hover:border-rose-900/20 transition-all duration-200"
     >
       {/* Top Row: Title & Icon Badge */}
       <div className="flex items-center justify-between gap-1.5">

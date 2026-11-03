@@ -1,4 +1,5 @@
 import { apiClient } from './axios'
+import { withDateParams } from './dateParams'
 
 /**
  * Thin wrapper around /cash-request, mirroring cashDisbursementApi.js's
@@ -20,9 +21,10 @@ import { apiClient } from './axios'
  */
 export const cashRequestApi = {
   // Get cash requests (optionally filtered by status / employee_id — see
-  // getCashRequest in cash-request.controller.js)
+  // getCashRequest in cash-request.controller.js). dateFrom/dateTo are
+  // converted to the backend's date_from/date_to.
   getAll: async (params = {}) => {
-    const response = await apiClient.get('/cash-request', { params })
+    const response = await apiClient.get('/cash-request', { params: withDateParams(params) })
     return response.data || []
   },
 

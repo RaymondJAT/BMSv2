@@ -1,4 +1,5 @@
 const { Query, Transaction, SQLQueryBuilder } = require('../database/utilities/queries.util')
+const { resolveDateRange, addDateCondition } = require('../utilities/dateRange.util')
 const { Liquidation } = require('../database/models/Liquidation')
 const { Cash } = require('../database/models/Cash')
 const { Revolving } = require('../database/models/Revolving')
@@ -509,6 +510,37 @@ const deleteDisbursement = async (cdId) => {
  *              Reimbursement (company owes the Requester).
  */
 const createLiquidation = async (req, res) => {
+  // #swagger.tags = ['Liquidation']
+  // #swagger.description = 'Requester submits a Liquidation for a COMPLETED Cash Request. Totals are computed server-side from items. Every line needs at least one receipt image. Travel lines additionally require rt, store_name, from, to and mode_of_transportation_id.'
+  // #swagger.autoBody = false
+  // #swagger.consumes = ['application/json']
+  /*
+    #swagger.parameters['body'] = {
+      in: 'body',
+      required: true,
+      schema: {
+        cash_request_id: 1,
+        description: 'string',
+        receipt: 'base64 string (activity-level receipt)',
+        items: [
+          {
+            date: '2026-10-30',
+            type: 'TRAVEL',
+            rt: 'RT-0001',
+            store_name: 'string',
+            particulars: 1,
+            purpose: 'string',
+            from: 'string',
+            to: 'string',
+            mode_of_transportation_id: 1,
+            amount: 100.0,
+            receipts: ['base64 string']
+          }
+        ]
+      }
+    }
+  */
+
   const userId = req.userId || req.user?.id || 1
   const { cash_request_id, description, receipt, items } = req.body
 
@@ -634,6 +666,32 @@ const createLiquidation = async (req, res) => {
  *              gap flagged for a product decision, not silently handled.
  */
 const updateLiquidation = async (req, res) => {
+  // #swagger.tags = ['Liquidation']
+  // #swagger.description = 'Requester edits their own PENDING, REJECTED or INCOMPLETE liquidation. Always resets status to PENDING and re-enters the Team Leader queue. Editing an INCOMPLETE liquidation does not reverse the settlement already posted at verification.'
+  // #swagger.autoBody = false
+  // #swagger.consumes = ['application/json']
+  /*
+    #swagger.parameters['body'] = {
+      in: 'body',
+      required: true,
+      schema: {
+        id: 1,
+        description: 'string',
+        receipt: 'base64 string (optional)',
+        items: [
+          {
+            date: '2026-10-30',
+            type: 'MISCELLANEOUS',
+            particulars: 1,
+            purpose: 'string',
+            amount: 100.0,
+            receipts: ['base64 string']
+          }
+        ]
+      }
+    }
+  */
+
   const userId = req.userId || req.user?.id || 1
   const { id, description, receipt, items } = req.body
 
@@ -699,7 +757,7 @@ const updateLiquidation = async (req, res) => {
             // la_receipt is NOT NULL — '' satisfies the constraint when no
             // new receipt is attached on this edit.
             [Liquidation.Activity.cols.receipt]:
-              receipt || items.flatMap((it) => it.receipts || [])[0] || '',
+              receipt || (items || []).flatMap((it) => it.receipts || [])[0] || '',
             [Liquidation.Activity.cols.created_by]: userId,
           })
           .build(),
@@ -725,6 +783,15 @@ const updateLiquidation = async (req, res) => {
  *              verifies (see verifyLiquidation).
  */
 const approveLiquidation = async (req, res) => {
+  // #swagger.tags = ['Liquidation']
+  // #swagger.description = 'Team Leader approves a PENDING liquidation. No financial effect — settlement happens at verification by the Fund Custodian.'
+  // #swagger.autoBody = false
+  // #swagger.consumes = ['application/x-www-form-urlencoded', 'application/json']
+  /*
+    #swagger.parameters['id'] = { in: 'formData', type: 'integer', required: true, description: 'Liquidation id' }
+    #swagger.parameters['remarks'] = { in: 'formData', type: 'string', required: false, description: 'Optional approval remarks' }
+  */
+
   const userId = req.userId || req.user?.id || 1
   const { id, remarks } = req.body
 
@@ -774,6 +841,15 @@ const approveLiquidation = async (req, res) => {
  *              either way — the money hasn't moved yet at PENDING/APPROVED.
  */
 const rejectLiquidation = async (req, res) => {
+  // #swagger.tags = ['Liquidation']
+  // #swagger.description = 'Reject a PENDING (Team Leader) or APPROVED (Fund Custodian) liquidation before settlement. No financial effect.'
+  // #swagger.autoBody = false
+  // #swagger.consumes = ['application/x-www-form-urlencoded', 'application/json']
+  /*
+    #swagger.parameters['id'] = { in: 'formData', type: 'integer', required: true, description: 'Liquidation id' }
+    #swagger.parameters['remarks'] = { in: 'formData', type: 'string', required: true, description: 'Reason for rejection' }
+  */
+
   const userId = req.userId || req.user?.id || 1
   const { id, remarks } = req.body
 
@@ -852,6 +928,16 @@ const rejectLiquidation = async (req, res) => {
  *              Return, no Reimbursement) needs no fund selection at all.
  */
 const verifyLiquidation = async (req, res) => {
+  // #swagger.tags = ['Liquidation']
+  // #swagger.description = 'Fund Custodian verifies an APPROVED liquidation — this is where the cash is settled (expended / cash to return / reimbursement). revolving_fund_id selects the fund that receives the return or funds the reimbursement; it defaults to the disbursement original fund and must not be CLOSED when cash moves.'
+  // #swagger.autoBody = false
+  // #swagger.consumes = ['application/x-www-form-urlencoded', 'application/json']
+  /*
+    #swagger.parameters['id'] = { in: 'formData', type: 'integer', required: true, description: 'Liquidation id' }
+    #swagger.parameters['revolving_fund_id'] = { in: 'formData', type: 'integer', required: false, description: 'Fund to credit the return / fund the reimbursement — defaults to the disbursement original fund' }
+    #swagger.parameters['remarks'] = { in: 'formData', type: 'string', required: false, description: 'Optional verification remarks' }
+  */
+
   const userId = req.userId || req.user?.id || 1
   const { id, remarks, revolving_fund_id } = req.body
 
@@ -1157,6 +1243,15 @@ const verifyLiquidation = async (req, res) => {
  *              that already-moved money, not a financial gate.
  */
 const completeLiquidation = async (req, res) => {
+  // #swagger.tags = ['Liquidation']
+  // #swagger.description = 'Finance post-audit sign-off on a VERIFIED liquidation. Pure status change — no effect on the Cash Disbursement or Revolving Fund.'
+  // #swagger.autoBody = false
+  // #swagger.consumes = ['application/x-www-form-urlencoded', 'application/json']
+  /*
+    #swagger.parameters['id'] = { in: 'formData', type: 'integer', required: true, description: 'Liquidation id' }
+    #swagger.parameters['remarks'] = { in: 'formData', type: 'string', required: false, description: 'Optional post-audit remarks' }
+  */
+
   const userId = req.userId || req.user?.id || 1
   const { id, remarks } = req.body
 
@@ -1211,6 +1306,15 @@ const completeLiquidation = async (req, res) => {
  *              settled amounts themselves need to change.
  */
 const markLiquidationIncomplete = async (req, res) => {
+  // #swagger.tags = ['Liquidation']
+  // #swagger.description = 'Finance flags a VERIFIED liquidation as INCOMPLETE for correction during post-audit. Does NOT reverse the settlement already posted at verification.'
+  // #swagger.autoBody = false
+  // #swagger.consumes = ['application/x-www-form-urlencoded', 'application/json']
+  /*
+    #swagger.parameters['id'] = { in: 'formData', type: 'integer', required: true, description: 'Liquidation id' }
+    #swagger.parameters['remarks'] = { in: 'formData', type: 'string', required: true, description: 'What is incomplete' }
+  */
+
   const userId = req.userId || req.user?.id || 1
   const { id, remarks } = req.body
 
@@ -1254,6 +1358,12 @@ const markLiquidationIncomplete = async (req, res) => {
 // ==========================================
 
 const getCashRequestEligibility = async (req, res) => {
+  // #swagger.tags = ['Liquidation']
+  // #swagger.description = 'Check whether an employee is eligible to create a new Cash Request (not eligible while a prior Cash Disbursement is still UNLIQUIDATED).'
+  /*
+    #swagger.parameters['employee_id'] = { in: 'query', type: 'integer', required: true, description: 'Employee id to check' }
+  */
+
   const { employee_id } = req.query
   if (!employee_id)
     return res.status(400).json({ message: 'Missing required query param: employee_id' })
@@ -1271,8 +1381,29 @@ const getCashRequestEligibility = async (req, res) => {
   }
 }
 
+/**
+ * @name getLiquidation
+ * @description Daily view: defaults to TODAY's liquidations (by created
+ *              date). Pass date_from / date_to to look back. If
+ *              cash_request_id is given and no dates are sent, no date
+ *              filter is applied.
+ */
 const getLiquidation = async (req, res) => {
+  // #swagger.tags = ['Liquidation']
+  // #swagger.description = 'Get Liquidations. Defaults to TODAY (by created date); pass date_from/date_to to look back. If cash_request_id is given without dates, no date filter is applied.'
+  /*
+    #swagger.parameters['status'] = { in: 'query', type: 'string', required: false, description: 'Filter by status (PENDING, APPROVED, REJECTED, VERIFIED, INCOMPLETE, COMPLETED)' }
+    #swagger.parameters['employee_id'] = { in: 'query', type: 'integer', required: false, description: 'Filter by requesting employee id' }
+    #swagger.parameters['cash_request_id'] = { in: 'query', type: 'integer', required: false, description: 'Filter by cash request id' }
+    #swagger.parameters['date_from'] = { in: 'query', type: 'string', required: false, description: 'Start date (YYYY-MM-DD, inclusive). Defaults to today.' }
+    #swagger.parameters['date_to'] = { in: 'query', type: 'string', required: false, description: 'End date (YYYY-MM-DD, inclusive). Defaults to today.' }
+  */
+
   const { status, employee_id, cash_request_id } = req.query
+
+  const range = resolveDateRange(req.query, { defaultToToday: !cash_request_id })
+  if (range.error) return res.status(400).json({ message: range.error })
+
   try {
     const conditions = []
     const params = []
@@ -1288,6 +1419,7 @@ const getLiquidation = async (req, res) => {
       conditions.push('l.l_cash_request_id = ?')
       params.push(cash_request_id)
     }
+    addDateCondition('l.l_createdAt', range, conditions, params)
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
     const rows = await Query(
@@ -1319,6 +1451,12 @@ const getLiquidation = async (req, res) => {
 }
 
 const getLiquidationDetail = async (req, res) => {
+  // #swagger.tags = ['Liquidation']
+  // #swagger.description = 'Get one liquidation with its line items (not date filtered — fetched by id).'
+  /*
+    #swagger.parameters['id'] = { in: 'path', type: 'integer', required: true, description: 'Liquidation id' }
+  */
+
   const { id } = req.params
   try {
     const rows = await Query(
@@ -1382,6 +1520,12 @@ const getLiquidationDetail = async (req, res) => {
 }
 
 const getLiquidationActivity = async (req, res) => {
+  // #swagger.tags = ['Liquidation']
+  // #swagger.description = 'Get liquidation activity/audit records'
+  /*
+    #swagger.parameters['liquidation_id'] = { in: 'query', type: 'integer', required: false, description: 'Filter by liquidation id' }
+  */
+
   const { liquidation_id } = req.query
   try {
     let queryBuilder = SQL.model(Liquidation.Activity).select(Liquidation.Activity.select)

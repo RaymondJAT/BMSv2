@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useMemo, useCallback } from 'react'
 import DataTable from '../../../components/ui/DataTable'
+import TableToolbar from '../../../components/ui/TableToolbar'
+import { getTodayRange } from '../../../utils/dateRange'
 import StatCard from '../../../components/ui/StatCard'
-import { Plus, Search, Filter, FileSpreadsheet, AlertCircle, Loader2 } from 'lucide-react'
+import { Plus, FileSpreadsheet, AlertCircle, Loader2 } from 'lucide-react'
 import { createRequestColumns } from '../../../table-columns/requestColumns'
 import { buildCashRequestMetricCards } from '../../../config/cashRequestMetrics'
 import CreateCashRequestModal from '../../../features/request/CreateCashRequestModal'
@@ -38,6 +40,7 @@ function CashRequestPage() {
   const canCreate = CREATE_ROLES.includes(userRole)
   const showStatusFilter = STATUS_FILTER_ROLES.includes(userRole)
 
+  const [dateRange, setDateRange] = useState(getTodayRange)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [selectedIds, setSelectedIds] = useState([])
@@ -67,7 +70,12 @@ function CashRequestPage() {
     approveRequest,
     rejectRequest,
     disburseRequest,
-  } = useCashRequests({ role: userRole, employeeId: currentEmployeeId })
+  } = useCashRequests({
+    role: userRole,
+    employeeId: currentEmployeeId,
+    dateFrom: dateRange.from,
+    dateTo: dateRange.to,
+  })
 
   const { districts, modes, searchStores, searchModes } = useLiquidationMasterData()
   const eligibility = useCashRequestEligibility(currentEmployeeId, requests)
@@ -190,39 +198,32 @@ function CashRequestPage() {
       </div>
 
       {/* Toolbar & Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 bg-white py-2 px-3 rounded-xl border border-slate-200/80 shrink-0">
-        <div className="relative w-full sm:w-72">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search Reference, Project, Purpose, Requester..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E31837] focus:border-transparent transition-all"
-          />
-        </div>
-
-        {showStatusFilter && (
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600">
-              <Filter className="w-3.5 h-3.5 text-slate-400" />
-              <span>Status:</span>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer text-xs"
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="PENDING">Pending Team Leader</option>
-                <option value="APPROVED">Pending Fund Custodian</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="REJECTED">Rejected</option>
-              </select>
-            </div>
-          </div>
-        )}
-      </div>
-
+      <TableToolbar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search Reference, Project, Purpose, Requester..."
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        filters={
+          showStatusFilter
+            ? [
+                {
+                  key: 'status',
+                  label: 'Status',
+                  value: statusFilter,
+                  onChange: setStatusFilter,
+                  options: [
+                    { value: 'ALL', label: 'All Statuses' },
+                    { value: 'PENDING', label: 'Pending Team Leader' },
+                    { value: 'APPROVED', label: 'Pending Fund Custodian' },
+                    { value: 'COMPLETED', label: 'Completed' },
+                    { value: 'REJECTED', label: 'Rejected' },
+                  ],
+                },
+              ]
+            : []
+        }
+      />
       {/* Data Table */}
       <div className="flex-1 min-h-0 w-full overflow-hidden">
         {isLoading ? (
@@ -268,7 +269,6 @@ function CashRequestPage() {
                   Showing {filteredRequests.length} entries
                   {selectedIds.length > 0 && ` (${selectedIds.length} selected)`}
                 </span>
-                <span>Fiscal Year 2026</span>
               </div>
             }
           />

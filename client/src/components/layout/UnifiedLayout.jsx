@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronLeft } from 'lucide-react'
 import Sidebar from './Sidebar'
@@ -9,7 +9,6 @@ export default function UnifiedLayout({ children }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
-  // Track window resizing to handle tablet/mobile state changes dynamically
   useEffect(() => {
     const handleResize = () => {
       const mobileStatus = window.innerWidth < 1024
@@ -19,7 +18,6 @@ export default function UnifiedLayout({ children }) {
       }
     }
 
-    // Run check on mount
     handleResize()
 
     window.addEventListener('resize', handleResize)
@@ -31,7 +29,7 @@ export default function UnifiedLayout({ children }) {
   const handleCloseMobile = () => setIsMobileOpen(false)
 
   return (
-    <div className="flex h-screen w-full bg-[#F9F6F0] text-slate-800 antialiased overflow-hidden">
+    <div className="flex h-screen w-full bg-[#f8f9fa] text-slate-800 antialiased overflow-hidden">
       {/* Unified Shell Outer Frame */}
       <div className="relative flex h-full w-full overflow-hidden">
         {/* Single Unified Sidebar Instance */}
@@ -41,7 +39,7 @@ export default function UnifiedLayout({ children }) {
           onCloseMobile={handleCloseMobile}
         />
 
-        {/* Boundary Toggle Button (Desktop Only) */}
+        {/* Boundary Toggle Button */}
         {!isMobile && (
           <div
             className="hidden lg:block absolute top-8 -translate-y-1/2 z-40 transition-all duration-300 ease-in-out"

@@ -14,6 +14,20 @@ const accessRoleExists = async (accessId) => {
 }
 
 const upsertMasterUser = async (req, res) => {
+  // #swagger.tags = ['Master User']
+  // #swagger.description = 'Create a Master User (no id) or update an existing one (id). The access role must exist and be ACTIVE. On create, username, password and access (role) are required.'
+  // #swagger.autoBody = false
+  // #swagger.consumes = ['application/x-www-form-urlencoded', 'application/json']
+  /*
+    #swagger.parameters['id'] = { in: 'formData', type: 'integer', required: false, description: 'User id (update if present, create if blank)' }
+    #swagger.parameters['employee_id'] = { in: 'formData', type: 'integer', required: false, description: 'Employee id (master_employee.me_id)' }
+    #swagger.parameters['username'] = { in: 'formData', type: 'string', required: false, description: 'Username (required on create)' }
+    #swagger.parameters['password'] = { in: 'formData', type: 'string', required: false, description: 'Plain password, stored encrypted (required on create)' }
+    #swagger.parameters['access'] = { in: 'formData', type: 'integer', required: false, description: 'Access role id (master_access). Required on create. access_id is accepted as an alias.' }
+    #swagger.parameters['access_id'] = { in: 'formData', type: 'integer', required: false, description: 'Alias of access, used only when access is not sent' }
+    #swagger.parameters['status'] = { in: 'formData', type: 'string', required: false, description: 'ACTIVE or INACTIVE (defaults to ACTIVE on create)' }
+  */
+
   const { id, employee_id, username, password, access, access_id, status } = req.body
   const roleAccess = access !== undefined ? access : access_id
   const currentUserId = req.user?.id || req.user?.user_id || null
@@ -107,6 +121,29 @@ const upsertMasterUser = async (req, res) => {
  *              label ever needs it, without shadowing the FK.
  */
 const getMasterUser = async (req, res) => {
+  // #swagger.tags = ['Master User']
+  // #swagger.description = 'Get all Master User records joined with Employee and Access. employee_id is the FK to master_employee.me_id; the human-readable HR code is returned separately as employee_code.'
+  /*
+    #swagger.responses[200] = {
+      description: 'List of users',
+      schema: [
+        {
+          id: 1,
+          user_id: 1,
+          username: 'string',
+          status: 'ACTIVE',
+          access_id: 1,
+          access_name: 'string',
+          employee_id: 1,
+          employee_code: 'string',
+          fullname: 'string',
+          department_id: 1,
+          position_id: 1,
+          createdAt: '2026-10-30T08:00:00.000Z'
+        }
+      ]
+    }
+  */
   try {
     const selectCols = [
       `${Master.User.table}.${Master.User.cols.id} AS id`,

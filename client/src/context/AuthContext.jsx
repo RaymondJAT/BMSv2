@@ -8,15 +8,20 @@ const TOKEN_KEY = 'bms_token'
 const PROTECTED_ACCESS_NAMES = ['ADMINISTRATOR']
 const isProtectedAccessName = (name) => PROTECTED_ACCESS_NAMES.includes((name || '').toUpperCase())
 
+// One shared empty Map. Setting state to this same reference again is a
+// no-op in React, so repeated clearSession() calls (e.g. from the
+// 'auth:unauthorized' event) don't trigger re-render loops.
+const EMPTY_PERMISSIONS = new Map()
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
-  const [permissions, setPermissions] = useState(new Map())
+  const [permissions, setPermissions] = useState(EMPTY_PERMISSIONS)
   const [isLoading, setIsLoading] = useState(true)
   const [permissionsLoaded, setPermissionsLoaded] = useState(false)
 
   const loadPermissions = useCallback(async (accessId, accessName) => {
     if (!accessId) {
-      setPermissions(new Map())
+      setPermissions(EMPTY_PERMISSIONS)
       setPermissionsLoaded(true)
       return
     }
@@ -28,7 +33,7 @@ export function AuthProvider({ children }) {
       )
     } catch (err) {
       console.error('Failed to load route permissions:', err)
-      setPermissions(new Map())
+      setPermissions(EMPTY_PERMISSIONS)
     } finally {
       setPermissionsLoaded(true)
     }
@@ -36,8 +41,9 @@ export function AuthProvider({ children }) {
 
   const clearSession = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
+    // Same-value updates bail out, so calling this repeatedly is harmless.
     setUser(null)
-    setPermissions(new Map())
+    setPermissions(EMPTY_PERMISSIONS)
     setPermissionsLoaded(true)
   }, [])
 
@@ -157,53 +163,3 @@ export function useAuth() {
   }
   return context
 }
-
-// import { createContext, useContext, useState } from 'react'
-
-// const AuthContext = createContext(null)
-
-// export function AuthProvider({ children }) {
-//   const [user, setUser] = useState({
-//     name: 'Admin User',
-//     role: 'DEVELOPER',
-//   })
-//   const [isLoading, setIsLoading] = useState(false)
-
-//   const login = async () => {
-//     setUser({ name: 'Admin User', role: 'DEVELOPER' })
-//     return { success: true }
-//   }
-
-//   const logout = () => {
-//     setUser(null)
-//   }
-
-//   const hasRole = (allowedRoles = []) => {
-//     if (!user || !user.role) return false
-//     return allowedRoles.includes(user.role)
-//   }
-
-//   return (
-//     <AuthContext.Provider
-//       value={{
-//         user,
-//         setUser,
-//         isAuthenticated: !!user,
-//         isLoading,
-//         login,
-//         logout,
-//         hasRole,
-//       }}
-//     >
-//       {children}
-//     </AuthContext.Provider>
-//   )
-// }
-
-// export function useAuth() {
-//   const context = useContext(AuthContext)
-//   if (!context) {
-//     throw new Error('useAuth must be used within an AuthProvider')
-//   }
-//   return context
-// }

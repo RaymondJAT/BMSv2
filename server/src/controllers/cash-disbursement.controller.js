@@ -1,4 +1,5 @@
 const { Query, Transaction, SQLQueryBuilder } = require('../database/utilities/queries.util')
+const { resolveDateRange, filterRowsByDate } = require('../utilities/dateRange.util')
 const { Cash } = require('../database/models/Cash')
 const { Revolving } = require('../database/models/Revolving')
 const SQL = new SQLQueryBuilder()
@@ -1206,17 +1207,25 @@ const reimburseCashDisbursement = async (req, res) => {
 
 /**
  * @name getCashDisbursement
- * @description Get all Disbursement records, optionally filtered
+ * @description Daily view: defaults to TODAY's disbursements (by
+ *              date_issued). Pass date_from / date_to to look back. If
+ *              revolving_fund_id is given and no dates are sent, all of
+ *              that fund's disbursements are returned.
  */
 const getCashDisbursement = async (req, res) => {
   // #swagger.tags = ['Cash Disbursement']
-  // #swagger.description = 'Get all Disbursement records'
+  // #swagger.description = 'Get Disbursement records. Defaults to TODAY (by date_issued); pass date_from/date_to to look back. If revolving_fund_id is given without dates, all of that fund disbursements are returned.'
   /* 
     #swagger.parameters['revolving_fund_id'] = { in: 'query', type: 'integer', required: false, description: 'Filter by revolving fund id' }
     #swagger.parameters['status'] = { in: 'query', type: 'string', required: false, description: 'Filter by status (LIQUIDATED / UNLIQUIDATED)' }
+    #swagger.parameters['date_from'] = { in: 'query', type: 'string', required: false, description: 'Start date (YYYY-MM-DD, inclusive). Defaults to today.' }
+    #swagger.parameters['date_to'] = { in: 'query', type: 'string', required: false, description: 'End date (YYYY-MM-DD, inclusive). Defaults to today.' }
   */
 
   const { revolving_fund_id, status } = req.query
+
+  const range = resolveDateRange(req.query, { defaultToToday: !revolving_fund_id })
+  if (range.error) return res.status(400).json({ message: range.error })
 
   try {
     let queryBuilder = SQL.model(Cash.Disbursement).select(Cash.Disbursement.select)
@@ -1231,7 +1240,9 @@ const getCashDisbursement = async (req, res) => {
     const { sql, bindings } = queryBuilder.build()
     const result = await Query(sql, bindings)
 
-    return res.status(200).json(result)
+    // NOTE: 'date_issued' is the aliased key the select returns. If your
+    // response shows it under a different name, change it here.
+    return res.status(200).json(filterRowsByDate(result, 'date_issued', range))
   } catch (error) {
     console.error('Error in getCashDisbursement:', error)
     return res.status(500).json({ message: 'Error retrieving Disbursement records' })

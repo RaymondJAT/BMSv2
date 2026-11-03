@@ -1,4 +1,5 @@
 const { Query, Transaction, SQLQueryBuilder } = require('../database/utilities/queries.util')
+const { resolveDateRange, filterRowsByDate } = require('../utilities/dateRange.util')
 const { Revolving } = require('../database/models/Revolving')
 const { Closed } = require('../database/models/Closed')
 const { Budget } = require('../database/models/Budget')
@@ -147,9 +148,29 @@ const hasUnliquidatedDisbursements = async (fundId) => {
  */
 const upsertRevolvingFund = async (req, res) => {
   // #swagger.tags = ['Revolving Fund']
-  // #swagger.description = 'Create a new Revolving Fund or update an existing one. Validates against — but never writes to — the connected Budget.'
+  // #swagger.description = 'Create a new Revolving Fund (no id) or update / top-up an existing one (id). Validates against — but never writes to — the connected Budget. Top-up: send add_amount, a literal delta added to the fund current totals.'
   // #swagger.autoBody = false
   // #swagger.consumes = ['application/x-www-form-urlencoded', 'application/json']
+  /*
+    #swagger.parameters['id'] = { in: 'formData', type: 'integer', required: false, description: 'Revolving fund id (update if present, create if blank)' }
+    #swagger.parameters['budget_id'] = { in: 'formData', type: 'integer', required: false, description: 'Budget id (required on create)' }
+    #swagger.parameters['year'] = { in: 'formData', type: 'integer', required: false, description: 'Defaults to the current year' }
+    #swagger.parameters['month'] = { in: 'formData', type: 'integer', required: false, description: 'Defaults to the current month' }
+    #swagger.parameters['start_date'] = { in: 'formData', type: 'string', required: false, description: 'YYYY-MM-DD, defaults to today' }
+    #swagger.parameters['end_date'] = { in: 'formData', type: 'string', required: false, description: 'YYYY-MM-DD' }
+    #swagger.parameters['beginning'] = { in: 'formData', type: 'number', required: false, description: 'Beginning amount' }
+    #swagger.parameters['added'] = { in: 'formData', type: 'number', required: false, description: 'Amount added at creation' }
+    #swagger.parameters['total_fund'] = { in: 'formData', type: 'number', required: false, description: 'Defaults to beginning + added on create' }
+    #swagger.parameters['add_amount'] = { in: 'formData', type: 'number', required: false, description: 'Top-up: literal amount added THIS call (update only)' }
+    #swagger.parameters['issued'] = { in: 'formData', type: 'number', required: false, description: 'Issued total' }
+    #swagger.parameters['returned'] = { in: 'formData', type: 'number', required: false, description: 'Returned total' }
+    #swagger.parameters['outstanding'] = { in: 'formData', type: 'number', required: false, description: 'Outstanding total' }
+    #swagger.parameters['amount_expended'] = { in: 'formData', type: 'number', required: false, description: 'Expended total' }
+    #swagger.parameters['ending'] = { in: 'formData', type: 'number', required: false, description: 'Ending amount' }
+    #swagger.parameters['liquidated'] = { in: 'formData', type: 'number', required: false, description: 'Liquidated total' }
+    #swagger.parameters['balance'] = { in: 'formData', type: 'number', required: false, description: 'Balance, defaults to total_fund on create' }
+    #swagger.parameters['status'] = { in: 'formData', type: 'string', required: false, description: 'OPEN, ON REVIEW, CLOSED, CLEARED or RETURN' }
+  */
 
   const userId = req.userId || req.user?.id || req.body.user_id || 1
 
@@ -475,6 +496,26 @@ const upsertRevolvingFund = async (req, res) => {
  *              no risk of crediting the same money back twice.
  */
 const upsertClosedRevolvingFund = async (req, res) => {
+  // #swagger.tags = ['Revolving Fund']
+  // #swagger.description = 'Submit/report a Revolving Fund = CLOSE and SURRENDER it (no id), or edit an existing submission record (id). Zeroes the fund balance; status becomes CLOSED if the fund still has its own unliquidated disbursements, otherwise CLEARED.'
+  // #swagger.autoBody = false
+  // #swagger.consumes = ['application/x-www-form-urlencoded', 'application/json']
+  /*
+    #swagger.parameters['id'] = { in: 'formData', type: 'integer', required: false, description: 'Submission record id (update if present, create if blank)' }
+    #swagger.parameters['revolving_fund_id'] = { in: 'formData', type: 'integer', required: false, description: 'Fund being surrendered (required on create)' }
+    #swagger.parameters['beginning'] = { in: 'formData', type: 'number', required: false, description: 'Beginning amount' }
+    #swagger.parameters['cash_inflow'] = { in: 'formData', type: 'number', required: false, description: 'Cash inflow' }
+    #swagger.parameters['cash_outflow'] = { in: 'formData', type: 'number', required: false, description: 'Cash outflow' }
+    #swagger.parameters['ending'] = { in: 'formData', type: 'number', required: false, description: 'Ending amount' }
+    #swagger.parameters['cashonhand'] = { in: 'formData', type: 'number', required: false, description: 'Cash on hand counted' }
+    #swagger.parameters['gcash'] = { in: 'formData', type: 'number', required: false, description: 'GCash counted' }
+    #swagger.parameters['total_cash'] = { in: 'formData', type: 'number', required: false, description: 'Total cash counted' }
+    #swagger.parameters['sub_total'] = { in: 'formData', type: 'number', required: false, description: 'Sub total' }
+    #swagger.parameters['status'] = { in: 'formData', type: 'string', required: false, description: 'BALANCED, SHORT or OVER (defaults to BALANCED)' }
+    #swagger.parameters['created_by'] = { in: 'formData', type: 'integer', required: false, description: 'User id who submitted' }
+    #swagger.parameters['end_date'] = { in: 'formData', type: 'string', required: false, description: 'YYYY-MM-DD fund end date' }
+  */
+
   const userId = req.userId || req.user?.id || req.body.created_by || 1
 
   const {
@@ -664,6 +705,17 @@ const upsertClosedRevolvingFund = async (req, res) => {
  * @description Log activity entries manually
  */
 const upsertRevolvingFundActivity = async (req, res) => {
+  // #swagger.tags = ['Revolving Fund']
+  // #swagger.description = 'Manually insert (no id) or update (id) a Revolving Fund activity log entry'
+  // #swagger.autoBody = false
+  // #swagger.consumes = ['application/x-www-form-urlencoded', 'application/json']
+  /*
+    #swagger.parameters['id'] = { in: 'formData', type: 'integer', required: false, description: 'Activity id (update if present, create if blank)' }
+    #swagger.parameters['revolving_fund_id'] = { in: 'formData', type: 'integer', required: false, description: 'Revolving fund id (required on create)' }
+    #swagger.parameters['remarks'] = { in: 'formData', type: 'string', required: false, description: 'Activity remarks (required on create)' }
+    #swagger.parameters['user_id'] = { in: 'formData', type: 'integer', required: false, description: 'User id' }
+  */
+
   const userId = req.userId || req.user?.id || req.body.user_id || 1
   const { id, revolving_fund_id, remarks, user_id } = req.body
 
@@ -719,9 +771,24 @@ const upsertRevolvingFundActivity = async (req, res) => {
 
 /**
  * @name getRevolvingFund
+ * @description Daily view: defaults to TODAY's funds (by start_date). Pass
+ *              date_from / date_to to look back. If budget_id is given and
+ *              no dates are sent, all funds of that budget are returned.
  */
 const getRevolvingFund = async (req, res) => {
+  // #swagger.tags = ['Revolving Fund']
+  // #swagger.description = 'Get Revolving Fund records. Defaults to TODAY (by start_date); pass date_from/date_to to look back. If budget_id is given without dates, all funds of that budget are returned.'
+  /*
+    #swagger.parameters['status'] = { in: 'query', type: 'string', required: false, description: 'Filter by status (OPEN, ON REVIEW, CLOSED, CLEARED, RETURN)' }
+    #swagger.parameters['budget_id'] = { in: 'query', type: 'integer', required: false, description: 'Filter by budget id' }
+    #swagger.parameters['date_from'] = { in: 'query', type: 'string', required: false, description: 'Start date (YYYY-MM-DD, inclusive). Defaults to today.' }
+    #swagger.parameters['date_to'] = { in: 'query', type: 'string', required: false, description: 'End date (YYYY-MM-DD, inclusive). Defaults to today.' }
+  */
+
   const { status, budget_id } = req.query
+
+  const range = resolveDateRange(req.query, { defaultToToday: !budget_id })
+  if (range.error) return res.status(400).json({ message: range.error })
 
   try {
     let queryBuilder = SQL.model(Revolving.Fund).select([
@@ -751,7 +818,9 @@ const getRevolvingFund = async (req, res) => {
     const { sql, bindings } = queryBuilder.build()
     const result = await Query(sql, bindings)
 
-    return res.status(200).json(result)
+    // NOTE: 'start_date' is the aliased key the select above returns. If
+    // your response shows it under a different name, change it here.
+    return res.status(200).json(filterRowsByDate(result, 'start_date', range))
   } catch (error) {
     console.error('Error in getRevolvingFund:', error)
     return res
@@ -764,6 +833,12 @@ const getRevolvingFund = async (req, res) => {
  * @name getRevolvingFundActivity
  */
 const getRevolvingFundActivity = async (req, res) => {
+  // #swagger.tags = ['Revolving Fund']
+  // #swagger.description = 'Get Revolving Fund activity records'
+  /*
+    #swagger.parameters['revolving_fund_id'] = { in: 'query', type: 'integer', required: false, description: 'Filter by revolving fund id' }
+  */
+
   const { revolving_fund_id } = req.query
 
   try {
@@ -798,6 +873,12 @@ const getRevolvingFundActivity = async (req, res) => {
  * @name getClosedRevolvingFund
  */
 const getClosedRevolvingFund = async (req, res) => {
+  // #swagger.tags = ['Revolving Fund']
+  // #swagger.description = 'Get submitted/closed Revolving Fund records'
+  /*
+    #swagger.parameters['revolving_fund_id'] = { in: 'query', type: 'integer', required: false, description: 'Filter by revolving fund id' }
+  */
+
   const { revolving_fund_id } = req.query
   const ClosedModel = Closed.RevolvingFund
 

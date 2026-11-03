@@ -1,9 +1,11 @@
 import { apiClient } from './axios'
+import { withDateParams } from './dateParams'
 
 export const cashDisbursementApi = {
-  // Get cash disbursements
+  // Get cash disbursements. dateFrom/dateTo are converted to the
+  // backend's date_from/date_to.
   getAll: async (params = {}) => {
-    const response = await apiClient.get('/cash-disbursement', { params })
+    const response = await apiClient.get('/cash-disbursement', { params: withDateParams(params) })
     return response.data || []
   },
 

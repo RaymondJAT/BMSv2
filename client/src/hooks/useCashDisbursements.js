@@ -21,17 +21,18 @@ import { cashDisbursementApi } from '../api/cashDisbursementApi'
  * statuses/balances until the user manually retries or remounts the page.
  */
 export function useCashDisbursements(initialParams = {}) {
+  const { dateFrom, dateTo } = initialParams
   const [disbursements, setDisbursements] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isMutating, setIsMutating] = useState(false)
   const queryClient = useQueryClient()
 
-  const fetchDisbursements = useCallback(async (params = initialParams) => {
+  const fetchDisbursements = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const data = await cashDisbursementApi.getAll(params)
+      const data = await cashDisbursementApi.getAll({ dateFrom, dateTo })
       setDisbursements(data || [])
     } catch (err) {
       console.error('Failed to fetch cash disbursements:', err)
@@ -39,8 +40,7 @@ export function useCashDisbursements(initialParams = {}) {
     } finally {
       setIsLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [dateFrom, dateTo])
 
   useEffect(() => {
     fetchDisbursements()

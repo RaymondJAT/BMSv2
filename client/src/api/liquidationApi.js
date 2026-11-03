@@ -1,7 +1,9 @@
 import { apiClient } from './axios'
+import { withDateParams } from './dateParams'
 
 export const liquidationApi = {
-  getAll: async (params = {}) => (await apiClient.get('/liquidation', { params })).data || [],
+  getAll: async (params = {}) =>
+    (await apiClient.get('/liquidation', { params: withDateParams(params) })).data || [],
   getById: async (id) => (await apiClient.get(`/liquidation/${id}`)).data,
   create: async (payload) => (await apiClient.post('/liquidation', payload)).data,
   update: async (payload) => (await apiClient.put('/liquidation/update', payload)).data,

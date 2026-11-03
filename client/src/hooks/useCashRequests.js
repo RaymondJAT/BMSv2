@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { cashRequestApi } from '../api/cashRequestApi'
 
@@ -9,6 +9,11 @@ import { cashRequestApi } from '../api/cashRequestApi'
  * useState list (not react-query) refetched after every mutation, with a
  * shared runMutation() helper returning { success, message } so modals
  * can decide whether to close themselves.
+ *
+ * DATE RANGE: dateFrom / dateTo are explicit dependencies of
+ * fetchCashRequests, so changing the range recreates the callback and the
+ * effect below refetches. Mutations call fetchCashRequests() too, so they
+ * refetch with the CURRENT range rather than a stale one.
  *
  * ROLE-BASED SCOPING (server-side, via getCashRequest's status/
  * employee_id query params — see cash-request.controller.js):
@@ -36,19 +41,12 @@ import { cashRequestApi } from '../api/cashRequestApi'
  * disburseRequest only — create/edit/approve/reject never move money, so
  * they never invalidate them.
  */
-export function useCashRequests({ role, employeeId, ...restParams } = {}) {
+export function useCashRequests({ role, employeeId, dateFrom, dateTo } = {}) {
   const [requests, setRequests] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isMutating, setIsMutating] = useState(false)
   const queryClient = useQueryClient()
-
-  // restParams isn't expected to change across this hook's lifetime (the
-  // page never passes anything beyond role/employeeId today) — captured
-  // via ref so it can't cause fetchCashRequests to be recreated every
-  // render just because the caller passed a fresh {} literal.
-  const restParamsRef = useRef(restParams)
-  restParamsRef.current = restParams
 
   const roleParams = useMemo(() => {
     switch (role) {
@@ -76,7 +74,7 @@ export function useCashRequests({ role, employeeId, ...restParams } = {}) {
       setIsLoading(true)
       setError(null)
       try {
-        const params = paramsOverride ?? { ...roleParams, ...restParamsRef.current }
+        const params = paramsOverride ?? { ...roleParams, dateFrom, dateTo }
         const data = await cashRequestApi.getAll(params)
         setRequests(data || [])
       } catch (err) {
@@ -86,11 +84,12 @@ export function useCashRequests({ role, employeeId, ...restParams } = {}) {
         setIsLoading(false)
       }
     },
-    [roleParams],
+    [roleParams, dateFrom, dateTo],
   )
 
-  // Refetches whenever role or employeeId resolve/change — e.g. when
-  // currentUser loads asynchronously after the initial render.
+  // Refetches whenever role, employeeId, or the date range resolve/change
+  // — e.g. when currentUser loads asynchronously after the initial render,
+  // or when the user picks a new range in the date picker.
   useEffect(() => {
     fetchCashRequests()
   }, [fetchCashRequests])

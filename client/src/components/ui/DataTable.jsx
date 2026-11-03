@@ -211,8 +211,9 @@ const DataTable = ({
         className={`overflow-auto min-w-full flex-1 min-h-0 ${scrollbarClassName}`}
       >
         <table className="w-full text-left border-collapse">
-          <thead className="sticky top-0 z-10 bg-slate-50 shadow-xs">
-            <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+          {/* Header background uses the StatCard warm cream color (#F9F6F0) */}
+          <thead className="sticky top-0 z-10 bg-[#F9F6F0] shadow-xs">
+            <tr className="border-b border-slate-200/80 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
               {displayColumns.map((col, index) => {
                 const alignClass = getAlignmentClass(col.align)
                 const isSorted = sortColumn === col.accessorKey
@@ -220,7 +221,7 @@ const DataTable = ({
                 return (
                   <th
                     key={col.id || index}
-                    className={`py-2 px-3 font-semibold select-none bg-slate-50 ${col.width || ''}`}
+                    className={`py-2.5 px-3 font-semibold select-none bg-[#F1F3F5] ${col.width || ''}`}
                   >
                     {col.sortable && col.accessorKey ? (
                       <button
@@ -250,7 +251,7 @@ const DataTable = ({
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+          <tbody className="divide-y divide-slate-100 text-xs text-slate-700 bg-white">
             {isLoading ? (
               Array.from({ length: 4 }).map((_, rIdx) => (
                 <tr key={rIdx} className="animate-pulse">
@@ -280,8 +281,8 @@ const DataTable = ({
                     <tr
                       key={rowKey}
                       onClick={() => onRowClick && onRowClick(row)}
-                      className={`transition-colors hover:bg-slate-50/80 ${
-                        isSelected ? 'bg-rose-50/40' : ''
+                      className={`transition-colors hover:bg-[#F9F6F0] ${
+                        isSelected ? 'bg-rose-50/50' : ''
                       } ${onRowClick ? 'cursor-pointer' : ''}`}
                     >
                       {displayColumns.map((col, cIdx) => {
@@ -305,7 +306,7 @@ const DataTable = ({
                 {/* Loading indicator row while fetching next scroll batch */}
                 {hasMore && (
                   <tr>
-                    <td colSpan={displayColumns.length || 1} className="py-3 text-center">
+                    <td colSpan={displayColumns.length || 1} className="py-3 text-center bg-white">
                       <div className="inline-flex items-center gap-2 text-xs text-slate-400 font-medium">
                         <Loader2 className="w-3.5 h-3.5 text-[#E31837] animate-spin" />
                         <span>Loading more rows...</span>
@@ -320,9 +321,7 @@ const DataTable = ({
       </div>
 
       {footer && (
-        <div className="border-t border-slate-200/80 bg-slate-50/50 py-2 px-3 shrink-0">
-          {footer}
-        </div>
+        <div className="border-t border-slate-200/80 bg-[#F1F3F5] py-2 px-3 shrink-0">{footer}</div>
       )}
     </div>
   )

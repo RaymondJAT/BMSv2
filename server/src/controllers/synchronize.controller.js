@@ -218,9 +218,45 @@ const syncUsers = async (hrmisUsers, hrmisIdToLocalId, defaultAccessId) => {
 // ENTRY POINT
 // ==========================================
 
+/**
+ * @name runSync
+ * @description Pulls departments, positions, employees and user accounts
+ *              from HRMIS and inserts any that don't exist locally yet
+ *              (matched by name for departments/positions, by HRMIS
+ *              employee id for employees and users). Existing records are
+ *              never updated or deleted. New users are assigned the
+ *              default access role (see DEFAULT_SYNCED_ACCESS_NAME).
+ */
 const runSync = async (req, res) => {
   // #swagger.tags = ['Synchronize']
-  // #swagger.description = 'Sync departments, positions, employees, and user accounts from HRMIS'
+  // #swagger.description = 'Sync departments, positions, employees, and user accounts from HRMIS. Insert-only: records that already exist locally are left untouched. New users get the default access role (env HRMIS_SYNC_DEFAULT_ACCESS_NAME, default REQUESTER), which must already exist in master_access.'
+  // #swagger.autoBody = false
+  /*
+    #swagger.responses[200] = {
+      description: 'Synchronization completed (check summary.fetch_errors, employees_skipped and users_skipped for partial failures)',
+      schema: {
+        message: 'Synchronization completed',
+        summary: {
+          departments_received: 0,
+          positions_received: 0,
+          employees_received: 0,
+          users_received: 0,
+          departments_added: 0,
+          positions_added: 0,
+          employees_added: 0,
+          employees_skipped: [{ id: 1, name: 'string', reason: 'string' }],
+          users_added: 0,
+          users_skipped: [{ employee_id: 1, username: 'string', reason: 'string' }],
+          fetch_errors: [],
+          synced_at: '2026-10-30T08:00:00.000Z'
+        }
+      }
+    }
+    #swagger.responses[500] = {
+      description: 'Synchronization failed (e.g. default access role missing, HRMIS unreachable)',
+      schema: { message: 'string' }
+    }
+  */
   try {
     const hrmis = await fetchAllHrmisData({ debug: true })
 

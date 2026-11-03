@@ -7,12 +7,14 @@ const {
   updateCashRequest,
   completeCashRequest,
   getCashRequestActivity,
+  checkCashRequestEligibility,
 } = require('../controllers/cash-request.controller')
 
 const cashRequestRouter = express.Router()
 
 cashRequestRouter.get('/', getCashRequest)
 cashRequestRouter.get('/activity', getCashRequestActivity)
+cashRequestRouter.get('/eligibility', checkCashRequestEligibility)
 
 cashRequestRouter.post('/', createCashRequest)
 cashRequestRouter.put('/approve', approveCashRequest)

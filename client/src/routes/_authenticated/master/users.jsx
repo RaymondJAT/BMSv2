@@ -196,7 +196,6 @@ export default function UsersPage() {
                   Showing {filteredUsers.length} entries
                   {selectedIds.length > 0 && ` (${selectedIds.length} selected)`}
                 </span>
-                <span>Fiscal Year 2026</span>
               </div>
             }
           />

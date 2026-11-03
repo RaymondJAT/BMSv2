@@ -2,18 +2,18 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { liquidationApi } from '../api/liquidationApi'
 
-export function useLiquidations({ role, ...initialParams } = {}) {
+export function useLiquidations({ role, dateFrom, dateTo } = {}) {
   const [liquidations, setLiquidations] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isMutating, setIsMutating] = useState(false)
   const queryClient = useQueryClient()
 
-  const fetchLiquidations = useCallback(async (params = initialParams) => {
+  const fetchLiquidations = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const data = await liquidationApi.getAll(params)
+      const data = await liquidationApi.getAll({ dateFrom, dateTo })
       setLiquidations(data || [])
     } catch (err) {
       console.error('Failed to fetch liquidations:', err)
@@ -21,8 +21,7 @@ export function useLiquidations({ role, ...initialParams } = {}) {
     } finally {
       setIsLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [dateFrom, dateTo])
 
   useEffect(() => {
     fetchLiquidations()

@@ -185,7 +185,6 @@ export default function ProjectsPage() {
             footer={
               <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
                 <span>Showing {filteredProjects.length} entries</span>
-                <span>Fiscal Year 2026</span>
               </div>
             }
           />

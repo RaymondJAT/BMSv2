@@ -1,18 +1,14 @@
 import { useState, useEffect } from 'react'
 import { cashRequestEligibilityApi } from '../api/liquidationApi'
 
-/**
- * Whether `employeeId` may currently create a new Cash Request. Re-checks
- * whenever `requests` changes, since creating/completing/liquidating a
- * request can flip eligibility server-side (see hasOutstandingLiquidation
- * in cashRequestController.js) — this is purely an advisory UI hint, the
- * real gate is enforced on the backend at creation time.
- *
- * Guards against setting state from a stale response if `employeeId` or
- * `requests` changes again before the request resolves.
- */
-export function useCashRequestEligibility(employeeId, requests) {
+export function useCashRequestEligibility(employeeId, requests = []) {
   const [eligibility, setEligibility] = useState({ eligible: true, message: null })
+
+  // Only re-check when something eligibility-relevant changes, not on every
+  // new array identity.
+  const requestsKey = requests
+    .map((r) => `${r.id}:${r.status}:${r.disbursement_status}:${r.liquidation_status}`)
+    .join('|')
 
   useEffect(() => {
     if (!employeeId) return
@@ -28,7 +24,7 @@ export function useCashRequestEligibility(employeeId, requests) {
     return () => {
       cancelled = true
     }
-  }, [employeeId, requests])
+  }, [employeeId, requestsKey])
 
   return eligibility
 }

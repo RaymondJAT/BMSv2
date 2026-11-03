@@ -16,13 +16,13 @@ const getItem = (rowOrItem) => rowOrItem?.row?.original || rowOrItem || {}
 export const createRouteColumns = ({ onEdit }) => [
   {
     header: 'Route Access',
-    accessorKey: 'mra_name',
+    accessorKey: 'name', // Updated from mra_name to match network payload
     sortable: true,
     width: 'w-3/12',
     cell: (cellProps) => {
       const item = getItem(cellProps)
-      const name = item.mra_name || item.name || '—'
-      const id = item.mra_id || item.id || '—'
+      const name = item.name || item.mra_name || '—'
+      const id = item.id || item.mra_id || item.access_id || '—'
 
       return (
         <div className="flex items-center gap-2.5 min-w-0 w-full">
@@ -34,7 +34,7 @@ export const createRouteColumns = ({ onEdit }) => [
               {name}
             </p>
             <p className="text-[11px] text-slate-600 font-semibold font-mono truncate mt-0.5">
-              ID: #{id}
+              Role ID: #{id}
             </p>
           </div>
         </div>
@@ -43,12 +43,12 @@ export const createRouteColumns = ({ onEdit }) => [
   },
   {
     header: 'Status',
-    accessorKey: 'mra_status',
+    accessorKey: 'status', // Updated from mra_status to match network payload
     align: 'center',
     width: 'w-3/12',
     cell: (cellProps) => {
       const item = getItem(cellProps)
-      const status = (item.mra_status || item.status || 'INACTIVE').toUpperCase()
+      const status = (item.status || item.mra_status || 'INACTIVE').toUpperCase()
       const isActive = status === 'ACTIVE'
 
       return (
@@ -66,13 +66,13 @@ export const createRouteColumns = ({ onEdit }) => [
   },
   {
     header: 'Date Created',
-    accessorKey: 'mra_createdAt',
+    accessorKey: 'createdAt', // Updated from mra_createdAt
     sortable: true,
     align: 'center',
     width: 'w-4/12',
     cell: (cellProps) => {
       const item = getItem(cellProps)
-      const createdAt = item.mra_createdAt || item.createdAt
+      const createdAt = item.createdAt || item.mra_createdAt
 
       return (
         <div className="flex items-center justify-center gap-1.5 text-slate-700 text-xs font-semibold whitespace-nowrap w-full">

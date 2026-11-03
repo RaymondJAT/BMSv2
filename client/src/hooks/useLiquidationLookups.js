@@ -6,6 +6,7 @@ import { masterEmployeeApi } from '../api/masterEmployeeApi'
 import { masterParticularsApi } from '../api/masterParticularsApi'
 import { unwrapSettled, unwrapList } from '../utils/apiResponse'
 import { findDepartmentName, findEmployeeName, findFundLabel } from '../utils/lookupHelpers'
+import { getAllTimeRange } from '../utils/dateRange'
 
 // Same search-on-type pattern as useLiquidationMasterData's Store field —
 // a small initial ACTIVE batch, then a fresh server search per call via
@@ -31,6 +32,10 @@ const toParticularOption = (p) => ({
  * (districts/modes/searchStores/searchModes), useCashDisbursements
  * (disbursement rows, for the Verify modal's fund picker), and
  * useRevolvingFunds (full fund list with status, same picker).
+ *
+ * Funds are fetched ALL-TIME: the backend defaults to today's funds when
+ * no date range is sent, which would make getFundLabel miss any fund
+ * started on an earlier date.
  */
 export function useLiquidationLookups() {
   const [revolvingFunds, setRevolvingFunds] = useState([])
@@ -45,8 +50,9 @@ export function useLiquidationLookups() {
     setIsLoading(true)
     setError(null)
     try {
+      const allTime = getAllTimeRange()
       const [rfRes, budgetRes, deptRes, empRes, partRes] = await Promise.allSettled([
-        revolvingFundApi.getAll(),
+        revolvingFundApi.getAll({ dateFrom: allTime.from, dateTo: allTime.to }),
         budgetApi.getAll(),
         masterDepartmentApi.getAll(),
         masterEmployeeApi.getAll(),
