@@ -15,6 +15,7 @@
  * @property {'cr_department_id'} department_id
  * @property {'cr_team_lead'} team_lead
  * @property {'cr_request_date'} request_date
+ * @property {'cr_request_type'} request_type
  * @property {'cr_status'} status
  * @property {'cr_createdAt'} createdAt
  * @property {'cr_updated_at'} updated_at
@@ -85,12 +86,13 @@ const Cash = {
       department_id: 'cr_department_id',
       team_lead: 'cr_team_lead',
       request_date: 'cr_request_date',
+      request_type: 'cr_request_type',
       status: 'cr_status',
       createdAt: 'cr_createdAt',
       updated_at: 'cr_updated_at',
     },
-    select: ['cr_id', 'cr_reference_id', 'cr_cv_number', 'cr_purpose', 'cr_project', 'cr_amount', 'cr_revolving_fund_id', 'cr_employee_id', 'cr_department_id', 'cr_team_lead', 'cr_request_date', 'cr_status', 'cr_createdAt', 'cr_updated_at'],
-    insert: ['cr_reference_id', 'cr_cv_number', 'cr_purpose', 'cr_project', 'cr_amount', 'cr_revolving_fund_id', 'cr_employee_id', 'cr_department_id', 'cr_team_lead', 'cr_status'],
+    select: ['cr_id', 'cr_reference_id', 'cr_cv_number', 'cr_purpose', 'cr_project', 'cr_amount', 'cr_revolving_fund_id', 'cr_employee_id', 'cr_department_id', 'cr_team_lead', 'cr_request_date', 'cr_request_type', 'cr_status', 'cr_createdAt', 'cr_updated_at'],
+    insert: ['cr_reference_id', 'cr_cv_number', 'cr_purpose', 'cr_project', 'cr_amount', 'cr_revolving_fund_id', 'cr_employee_id', 'cr_department_id', 'cr_team_lead', 'cr_request_type', 'cr_status'],
   },
   Disbursement: {
     table: 'cash_disbursement',

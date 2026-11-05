@@ -2,9 +2,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useMemo, useCallback } from 'react'
 import DataTable from '../../../components/ui/DataTable'
 import TableToolbar from '../../../components/ui/TableToolbar'
+import Toast from '../../../components/ui/Toast'
 import { getTodayRange } from '../../../utils/dateRange'
+import { getLiquidationTypeForRequest } from '../../../utils/requestType'
 import StatCard from '../../../components/ui/StatCard'
-import { Plus, FileSpreadsheet, AlertCircle, Loader2 } from 'lucide-react'
+import { Plus, FileSpreadsheet, Loader2 } from 'lucide-react'
 import { createRequestColumns } from '../../../table-columns/requestColumns'
 import { buildCashRequestMetricCards } from '../../../config/cashRequestMetrics'
 import CreateCashRequestModal from '../../../features/request/CreateCashRequestModal'
@@ -24,11 +26,6 @@ export const Route = createFileRoute('/_authenticated/workbench/request')({
   component: CashRequestPage,
 })
 
-// Roles allowed to create/edit a Cash Request. Only Administrator sees
-// the multi-status filter dropdown too — Team Leader/Fund Custodian/
-// Finance are already server-scoped to one status by useCashRequests, so
-// a status dropdown there would just offer choices that always return
-// empty (see useCashRequests.js's roleParams).
 const CREATE_ROLES = ['ADMINISTRATOR', 'REQUESTER']
 const STATUS_FILTER_ROLES = ['ADMINISTRATOR', 'REQUESTER', 'DEVELOPER']
 
@@ -44,6 +41,12 @@ function CashRequestPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [selectedIds, setSelectedIds] = useState([])
+
+  // Toast State
+  const [toast, setToast] = useState({ isOpen: false, message: '', variant: 'warning' })
+  const showToast = (message, variant = 'warning') => {
+    setToast({ isOpen: true, message, variant })
+  }
 
   const {
     revolvingFunds,
@@ -63,7 +66,6 @@ function CashRequestPage() {
     metrics = {},
     isLoading,
     isMutating,
-    error,
     fetchCashRequests,
     createRequest,
     editRequest,
@@ -80,6 +82,8 @@ function CashRequestPage() {
   const { districts, modes, searchStores, searchModes } = useLiquidationMasterData()
   const eligibility = useCashRequestEligibility(currentEmployeeId, requests)
 
+  // Refetch after a liquidation is created so the row's liquidation_id /
+  // liquidation_status (and the Liquidate button) update.
   const {
     liquidateTarget,
     isLiquidating,
@@ -91,15 +95,21 @@ function CashRequestPage() {
     closeLiquidationView,
   } = useLiquidationWorkflow({ onLiquidationCreated: fetchCashRequests })
 
-  // ── Modal state ──────────────────────────────────────────────────
-  // One object instead of 4 separate booleans/values — "what's open and
-  // for which row" is a single source of truth. `modal.type` is one of:
-  // 'create' | 'edit' | 'view' | 'approve' | 'disburse' | null. The
-  // Liquidate flow keeps its own state in useLiquidationWorkflow above,
-  // since it's a distinct two-step flow with its own submitting state.
   const [modal, setModal] = useState({ type: null, request: null })
   const openModal = useCallback((type, request = null) => setModal({ type, request }), [])
   const closeModal = useCallback(() => setModal({ type: null, request: null }), [])
+
+  const handleCreateClick = useCallback(() => {
+    if (!eligibility.eligible) {
+      showToast(
+        eligibility.message ||
+          'You cannot create a new Cash Request until your previous Cash Request has been fully liquidated.',
+        'warning',
+      )
+      return
+    }
+    openModal('create')
+  }, [eligibility, openModal])
 
   const handleSelectionChange = useCallback((keys) => setSelectedIds(keys), [])
 
@@ -149,6 +159,14 @@ function CashRequestPage() {
 
   return (
     <div className="w-full h-full flex-1 flex flex-col min-h-0 space-y-3 overflow-hidden">
+      {/* Custom Toast Notification */}
+      <Toast
+        isOpen={toast.isOpen}
+        message={toast.message}
+        variant={toast.variant}
+        onClose={() => setToast((prev) => ({ ...prev, isOpen: false }))}
+      />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
         <div>
@@ -161,32 +179,24 @@ function CashRequestPage() {
           </p>
         </div>
 
-        <div className="flex flex-col items-end gap-1.5">
-          {!eligibility.eligible && (
-            <div className="w-full sm:w-auto p-2 bg-amber-50 border border-amber-200 text-amber-800 text-[11px] rounded-lg font-medium max-w-xs text-right">
-              {eligibility.message}
-            </div>
-          )}
-          <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition-all shadow-2xs cursor-pointer"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            Export
+          </button>
+          {canCreate && (
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition-all shadow-2xs cursor-pointer"
+              onClick={handleCreateClick}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E31837] hover:bg-[#c4122e] text-white font-bold text-xs rounded-lg transition-colors cursor-pointer shadow-xs"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              Export
+              <Plus className="w-3.5 h-3.5" />
+              New Cash Request
             </button>
-            {canCreate && (
-              <button
-                type="button"
-                disabled={!eligibility.eligible}
-                onClick={() => openModal('create')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E31837] hover:bg-[#c4122e] text-white font-bold text-xs rounded-lg transition-colors cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                New Cash Request
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
@@ -224,29 +234,13 @@ function CashRequestPage() {
             : []
         }
       />
+
       {/* Data Table */}
       <div className="flex-1 min-h-0 w-full overflow-hidden">
         {isLoading ? (
           <div className="h-full flex flex-col items-center justify-center bg-white rounded-xl border border-slate-200/80 p-6">
             <Loader2 className="w-6 h-6 text-[#E31837] animate-spin mb-2" />
             <p className="text-xs font-medium text-slate-500">Loading cash requests...</p>
-          </div>
-        ) : error ? (
-          <div className="h-full flex flex-col items-center justify-center bg-white rounded-xl border border-rose-200 p-6 text-center">
-            <AlertCircle className="w-8 h-8 text-rose-500 mb-2" />
-            <p className="text-sm font-bold text-slate-800">Error Loading Data</p>
-            <p className="text-xs text-slate-500 mt-1 max-w-md">
-              {typeof error === 'string'
-                ? error
-                : error?.message || 'Failed to fetch cash requests.'}
-            </p>
-            <button
-              type="button"
-              onClick={() => fetchCashRequests?.()}
-              className="mt-3 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
-            >
-              Retry
-            </button>
           </div>
         ) : (
           <DataTable
@@ -337,6 +331,7 @@ function CashRequestPage() {
           onCreate={createLiquidation}
           isSubmitting={isLiquidating}
           cashRequest={liquidateTarget}
+          liquidationType={getLiquidationTypeForRequest(liquidateTarget)}
           cashReceived={liquidateTarget.disbursement_amount}
           districts={districts}
           particulars={particulars}

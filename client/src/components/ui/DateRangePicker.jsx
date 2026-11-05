@@ -27,7 +27,7 @@ const PRESETS = [
   },
 ]
 
-/** One month grid. Arrows are rendered only on the outer edges (see `showPrev` / `showNext`). */
+/** One month grid. Arrows are rendered only on the outer edges. */
 function MonthGrid({
   month,
   rangeStart,
@@ -100,30 +100,39 @@ function MonthGrid({
           const isEnd = day === rangeEnd
           const inRange = rangeStart && rangeEnd && day > rangeStart && day < rangeEnd
           const isToday = day === maxDate
+          const hasActiveRange = rangeStart && rangeEnd && rangeStart !== rangeEnd
 
-          let cls = 'text-slate-700 hover:bg-slate-100'
-          if (disabled) cls = 'text-slate-300 cursor-not-allowed'
-          else if (isStart || isEnd) cls = 'bg-[#E31837] text-white font-bold'
-          else if (inRange) cls = 'bg-red-50 text-slate-800 rounded-none'
+          // Determine wrapper container background & rounding for range span
+          let wrapperClasses = ''
+          if (!disabled) {
+            if (inRange) {
+              wrapperClasses = 'bg-red-50'
+            } else if (isStart && hasActiveRange) {
+              wrapperClasses = 'bg-red-50 rounded-l-full'
+            } else if (isEnd && hasActiveRange) {
+              wrapperClasses = 'bg-red-50 rounded-r-full'
+            }
+          }
+
+          // Determine button appearance
+          let btnClasses = 'text-slate-700 hover:bg-slate-100'
+          if (disabled) {
+            btnClasses = 'text-slate-300 cursor-not-allowed'
+          } else if (isStart || isEnd) {
+            btnClasses = 'bg-[#E31837] text-white font-bold shadow-xs'
+          } else if (inRange) {
+            btnClasses = 'text-slate-800 hover:bg-red-100/60'
+          }
 
           return (
-            <div
-              key={day}
-              className={`h-8 flex items-center justify-center ${
-                inRange || (isStart && rangeEnd && rangeEnd !== rangeStart) || isEnd
-                  ? 'bg-red-50'
-                  : ''
-              } ${isStart && rangeEnd && rangeEnd !== rangeStart ? 'rounded-l-full' : ''} ${
-                isEnd && rangeStart !== rangeEnd ? 'rounded-r-full' : ''
-              }`}
-            >
+            <div key={day} className={`h-8 flex items-center justify-center ${wrapperClasses}`}>
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => onPick(day)}
                 onMouseEnter={() => !disabled && onHover(day)}
-                className={`w-8 h-8 text-xs rounded-full transition-colors cursor-pointer ${cls} ${
-                  isToday && !isStart && !isEnd ? 'ring-1 ring-slate-300' : ''
+                className={`w-8 h-8 text-xs rounded-full transition-colors cursor-pointer flex items-center justify-center ${btnClasses} ${
+                  isToday && !isStart && !isEnd ? 'ring-1 ring-slate-300 font-semibold' : ''
                 }`}
               >
                 {Number(day.slice(8))}
@@ -137,14 +146,7 @@ function MonthGrid({
 }
 
 /**
- * Date range filter with a two-month calendar. The left calendar shows one
- * month and the right shows the next (e.g. January | February); the arrows
- * move BOTH forward/back by two months (January | February → March | April).
- *
- * value:    { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' }
- * onChange: ({ from, to }) => void   — called once a full range is chosen.
- *
- * Future dates are disabled (nothing can exist there yet).
+ * Date range filter with a two-month calendar and hover range preview.
  */
 export default function DateRangePicker({ value, onChange }) {
   const [open, setOpen] = useState(false)
@@ -156,8 +158,6 @@ export default function DateRangePicker({ value, onChange }) {
   const maxDate = todayStr()
   const currentMonthStart = startOfMonth(new Date())
 
-  // Opening: show the month BEFORE the selected end on the left so the
-  // selected end month sits on the right (today -> previous month | this month).
   const openPicker = useCallback(() => {
     const anchor = value?.to ? parseDateStr(value.to) : new Date()
     setLeftMonth(addMonths(startOfMonth(anchor), -1))

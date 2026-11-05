@@ -3,6 +3,7 @@ import { Image } from 'antd'
 import { Modal } from '../../components/ui/Modal'
 import { Plus, Trash2, Upload, X, Copy, ListPlus, AlertTriangle } from 'lucide-react'
 import RemoteSearchSelect from '../../components/ui/RemoteSearchSelect'
+import { getLiquidationTypeForRequest } from '../../utils/requestType'
 
 const formatCurrency = (val) =>
   `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -135,6 +136,7 @@ export default function CreateLiquidationModal({
   onUpdate,
   isSubmitting,
   cashRequest,
+  liquidationType: liquidationTypeProp = null,
   cashReceived,
   editingLiquidation = null,
   districts = [],
@@ -146,7 +148,18 @@ export default function CreateLiquidationModal({
 }) {
   const isEditMode = Boolean(editingLiquidation)
 
-  const [liquidationType, setLiquidationType] = useState('TRAVEL')
+  // Fixed by the Cash Request's request_type (TRAVEL EXPENSES -> Travel,
+  // BUDGET -> Miscellaneous), not chosen by the user. An explicit prop
+  // wins; otherwise an existing liquidation keeps the type already saved
+  // on its lines; otherwise it's derived from the cash request.
+  const liquidationType = useMemo(() => {
+    if (liquidationTypeProp) return liquidationTypeProp
+    const savedType = editingLiquidation?.items?.[0]?.type
+    if (savedType) return savedType === 'MISCELLANEOUS' ? 'MISCELLANEOUS' : 'TRAVEL'
+    if (cashRequest) return getLiquidationTypeForRequest(cashRequest)
+    return 'TRAVEL'
+  }, [liquidationTypeProp, cashRequest, editingLiquidation])
+
   const [items, setItems] = useState([emptyItem()])
   const [formError, setFormError] = useState(null)
   // { [itemIndex]: string[] } — only ever set on a submit attempt, and
@@ -200,7 +213,6 @@ export default function CreateLiquidationModal({
 
   useEffect(() => {
     if (!isOpen) {
-      setLiquidationType('TRAVEL')
       setItems([emptyItem()])
       setFormError(null)
       setLineErrors({})
@@ -208,7 +220,6 @@ export default function CreateLiquidationModal({
     }
     if (editingLiquidation) {
       const editItems = editingLiquidation.items || []
-      setLiquidationType(editItems[0]?.type === 'MISCELLANEOUS' ? 'MISCELLANEOUS' : 'TRAVEL')
       setItems(
         editItems.length
           ? editItems.map((it) => ({
@@ -239,23 +250,6 @@ export default function CreateLiquidationModal({
   const difference = Math.round((cashReceivedAmount - totalExpended) * 100) / 100
   const summaryLabel =
     difference > 0 ? 'Cash to Return' : difference < 0 ? 'Reimbursement' : 'Fully Liquidated'
-
-  const handleTypeChange = (newType) => {
-    setLiquidationType(newType)
-    setLineErrors({})
-    if (newType === 'MISCELLANEOUS') {
-      setItems((prev) =>
-        prev.map((it) => ({
-          ...it,
-          rt: '',
-          store_name: '',
-          from: '',
-          to: '',
-          mode_of_transportation_id: '',
-        })),
-      )
-    }
-  }
 
   const updateItem = (index, field, value) => {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, [field]: value } : it)))
@@ -421,37 +415,16 @@ export default function CreateLiquidationModal({
       fullScreen
     >
       <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
-        {/* TOP HEADER SECTION WITH TYPE SELECTION */}
+        {/* TOP HEADER SECTION WITH TYPE (read-only — set by the Cash Request's purpose) */}
         <div className="shrink-0 space-y-3 px-4 pt-4 border-b border-slate-200 pb-3 bg-slate-50/50">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Liquidation Type
               </label>
-              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-xs">
-                <button
-                  type="button"
-                  onClick={() => handleTypeChange('TRAVEL')}
-                  className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${
-                    isTravel
-                      ? 'bg-[#E31837] text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Travel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleTypeChange('MISCELLANEOUS')}
-                  className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${
-                    !isTravel
-                      ? 'bg-[#E31837] text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Miscellaneous
-                </button>
-              </div>
+              <span className="inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg bg-red-50 text-[#E31837] border border-red-100">
+                {isTravel ? 'Travel' : 'Miscellaneous'}
+              </span>
             </div>
           </div>
 

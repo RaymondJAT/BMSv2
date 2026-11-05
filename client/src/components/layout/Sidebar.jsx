@@ -163,8 +163,8 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
           )}
         </div>
 
-        {/* Navigation List */}
-        <nav className="custom-scrollbar flex-1 space-y-1 py-3 px-2.5 overflow-y-auto overflow-x-hidden">
+        {/* Navigation List — with increased spacing and padding */}
+        <nav className="custom-scrollbar flex-1 space-y-1.5 py-4 px-3 overflow-y-auto overflow-x-hidden">
           {visibleNavItems.map((item) => {
             const Icon = item.icon
 
@@ -182,7 +182,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                     inactiveProps={{
                       className: 'text-stone-100 hover:bg-white/10 hover:text-white',
                     }}
-                    className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-200 ease-in-out focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none"
+                    className="group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-200 ease-in-out focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none"
                   >
                     <motion.div
                       whileHover={shouldReduceMotion ? {} : { x: 2 }}
@@ -222,7 +222,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                       }
                       toggleDropdown(item.id)
                     }}
-                    className="group flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-stone-100 transition-all duration-200 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none"
+                    className="group flex w-full cursor-pointer items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-semibold text-stone-100 transition-all duration-200 hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none"
                     aria-expanded={isCollapsed ? flyout?.id === item.id : isDropdownOpen}
                     aria-haspopup={isCollapsed ? 'menu' : undefined}
                   >
@@ -263,7 +263,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                         animate="open"
                         exit="closed"
                         variants={shouldReduceMotion ? {} : dropdownVariants}
-                        className="ml-6 mt-1 space-y-0.5 border-l border-white/20 pl-2 overflow-hidden"
+                        className="ml-6 mt-1.5 space-y-1 border-l border-white/20 pl-2.5 overflow-hidden"
                       >
                         {item.children?.map((child) => (
                           <Link
@@ -274,7 +274,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                             inactiveProps={{
                               className: 'text-stone-200 hover:text-white hover:bg-white/10',
                             }}
-                            className="block rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all duration-200 hover:translate-x-0.5 focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none"
+                            className="block rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-200 hover:translate-x-0.5 focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none"
                           >
                             {child.title}
                           </Link>
@@ -322,6 +322,7 @@ export default function Sidebar({ isOpen, onCloseMobile, isMobile = false }) {
                   {flyout.children.length === 0 ? (
                     <p className="px-2 py-1.5 text-xs text-slate-400">No items</p>
                   ) : (
+                    flyout.children.Item?.map((child) => null) ||
                     flyout.children.map((child) => (
                       <Link
                         key={child.id}

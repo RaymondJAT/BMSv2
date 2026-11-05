@@ -277,7 +277,7 @@ export default function TransportationPage() {
           <DataTable
             columns={columns}
             data={filteredTransportation}
-            keyExtractor={(row) => row.mmot_id}
+            keyExtractor={(row, index) => row.mmot_id || row.id || `transport-${index}`}
             selectable={false}
             selectedRows={selectedIds}
             onSelectionChange={handleSelectionChange}

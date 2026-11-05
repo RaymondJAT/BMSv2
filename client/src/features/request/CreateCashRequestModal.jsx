@@ -4,6 +4,18 @@ import { amountToWords } from '../../utils/numberToWords'
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10)
 
+const PURPOSE_OPTIONS = [
+  'Travel Allowance',
+  'Purchase',
+  'Meal Allowance',
+  'Representation',
+  'Miscellaneous',
+  'Personal',
+  'RFID/Fuel/Parking',
+  'Maintenance',
+  'Rotation/Pick-up',
+]
+
 const EMPTY_FORM = {
   project: '',
   purpose: '',
@@ -15,18 +27,13 @@ const EMPTY_FORM = {
   request_date: getTodayDate(),
 }
 
-/**
- * Requester creates a Cash Request -> PENDING, or edits/resubmits an
- * existing PENDING/REJECTED one (backend resets it to PENDING on save —
- * see updateCashRequest). No financial effect either way.
- */
 export default function CreateCashRequestModal({
   isOpen,
   onClose,
   onCreate,
   onUpdate,
   isSubmitting,
-  currentUser = null, // Logged in user/employee context
+  currentUser = null,
   employees = [],
   departments = [],
   projects = [],
@@ -57,10 +64,9 @@ export default function CreateCashRequestModal({
         department_id: editingRequest.department_id ?? '',
         position_name: employee?.position_name || employee?.position || '',
         team_lead: editingRequest.team_lead || '',
-        request_date: getTodayDate(), // Always reset to today's date
+        request_date: getTodayDate(),
       })
     } else {
-      // Auto-populate logged-in user details on create
       const loggedInEmployee = employees.find(
         (emp) => String(emp.id) === String(currentUser?.employee_id || currentUser?.id),
       )
@@ -143,10 +149,10 @@ export default function CreateCashRequestModal({
       title={isEditMode ? 'Edit Cash Request' : 'New Cash Request'}
       subtitle={
         isEditMode
-          ? `${editingRequest?.reference_id || `#${editingRequest?.id}`} — correct and resubmit for approval.`
-          : 'Request a cash advance. The Revolving Fund is assigned by the Fund Custodian after approval.'
+          ? `${editingRequest?.reference_id || `#${editingRequest?.id}`} — update and resubmit for review.`
+          : 'Submit a cash requisition for operational expenses and processing.'
       }
-      maxWidth="max-w-lg"
+      maxWidth="max-w-xl"
     >
       <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-3.5">
         {formError && (
@@ -194,18 +200,26 @@ export default function CreateCashRequestModal({
             <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
               Purpose <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
+            <select
               required
-              placeholder="Office Supplies"
               value={formData.purpose}
               onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
-              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E31837] focus:border-transparent transition-all placeholder:text-slate-400"
-            />
+              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E31837] focus:border-transparent transition-all cursor-pointer"
+            >
+              <option value="">Select Purpose...</option>
+              {PURPOSE_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+              {isEditMode && formData.purpose && !PURPOSE_OPTIONS.includes(formData.purpose) && (
+                <option value={formData.purpose}>{formData.purpose} (custom)</option>
+              )}
+            </select>
           </div>
         </div>
 
-        {/* REQUESTER & DEPARTMENT (Read-only/Disabled for Logged-In User) */}
+        {/* REQUESTER & DEPARTMENT */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
           <div>
             <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
@@ -214,7 +228,7 @@ export default function CreateCashRequestModal({
             <select
               disabled
               value={formData.employee_id}
-              className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 cursor-not-allowed appearance-none"
+              className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 cursor-not-allowed appearance-none"
             >
               <option value="">Select Employee...</option>
               {employees.map((emp) => (
@@ -231,7 +245,7 @@ export default function CreateCashRequestModal({
             <select
               disabled
               value={formData.department_id}
-              className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 cursor-not-allowed appearance-none"
+              className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 cursor-not-allowed appearance-none"
             >
               <option value="">Select Department...</option>
               {departments.map((dept) => (
@@ -243,7 +257,7 @@ export default function CreateCashRequestModal({
           </div>
         </div>
 
-        {/* POSITION & REQUEST DATE (Disabled / Non-clickable) */}
+        {/* POSITION & REQUEST DATE */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
           <div>
             <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
@@ -255,7 +269,7 @@ export default function CreateCashRequestModal({
               tabIndex={-1}
               value={formData.position_name}
               placeholder="Auto-filled from Requester"
-              className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 cursor-not-allowed select-none focus:outline-none"
+              className="w-full px-3 py-1.5 bg-slate-100/80 border border-slate-200/90 rounded-lg text-xs font-medium text-slate-600 cursor-not-allowed select-none focus:outline-none"
             />
           </div>
           <div>
@@ -267,7 +281,7 @@ export default function CreateCashRequestModal({
               readOnly
               tabIndex={-1}
               value={formData.request_date}
-              className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 cursor-not-allowed select-none focus:outline-none pointer-events-none"
+              className="w-full px-3 py-1.5 bg-slate-100/80 border border-slate-200/90 rounded-lg text-xs font-medium text-slate-600 cursor-not-allowed select-none focus:outline-none pointer-events-none"
             />
           </div>
         </div>
@@ -321,24 +335,25 @@ export default function CreateCashRequestModal({
                 value={formData.amount}
                 onKeyDown={handleAmountKeyDown}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                className="w-full pl-6 pr-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E31837] focus:border-transparent transition-all appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full pl-6 pr-2.5 py-1.5 bg-slate-550 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E31837] focus:border-transparent transition-all appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             </div>
           </div>
         </div>
 
-        {/* AMOUNT IN WORDS — auto-derived */}
+        {/* AMOUNT IN WORDS (Auto-derived, given clear labeling and wider visual presentation) */}
         <div>
           <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-            Amount in Words
+            Amount in Words{' '}
+            <span className="text-[10px] font-normal text-slate-400">(Auto-generated)</span>
           </label>
           <input
             type="text"
             readOnly
             tabIndex={-1}
             value={amountInWords}
-            placeholder="Auto-generated from Amount"
-            className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 italic cursor-not-allowed select-none focus:outline-none"
+            placeholder="Auto-generated from Amount..."
+            className="w-full px-3 py-1.5 bg-slate-100/80 border border-slate-200/90 rounded-lg text-xs font-semibold text-slate-600 italic cursor-not-allowed select-none focus:outline-none truncate"
           />
         </div>
 

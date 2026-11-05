@@ -32,6 +32,18 @@ const REJECTABLE_CR_STATUSES = [CR_STATUS.PENDING, CR_STATUS.APPROVED]
  */
 const NON_ISSUABLE_RF_STATUSES = ['CLOSED', 'CLEARED', 'RETURN']
 
+/**
+ * Purposes that make a request TRAVEL EXPENSES (-> Travel liquidation
+ * form on the frontend). Everything else is BUDGET (-> Miscellaneous
+ * form). Case-insensitive so dropdown values like "Travel Allowance" and
+ * "Maintenance" match. 'rotation' and 'pick-?up' cover "Rotation/Pick-up".
+ */
+const TRAVEL_REGEX =
+  /travel expenses|travel|new store|renovation|installation|maintenance|cable pulling|transportation allowance|travel allowance|cable pulling allowance|transportation expenses|deployment|deploy|deployed|transporation|transpo|preventive maintenance|rotation|pick-?up/i
+
+const resolveRequestType = (purpose) =>
+  typeof purpose === 'string' && TRAVEL_REGEX.test(purpose) ? 'TRAVEL EXPENSES' : 'BUDGET'
+
 // ==========================================
 // SHARED HELPERS
 // (duplicated rather than imported from cashDisbursementController.js /
@@ -305,6 +317,10 @@ const createCashRequest = async (req, res) => {
     )
   }
 
+  // Request type decides which liquidation form is used later
+  // (TRAVEL EXPENSES -> Travel form, BUDGET -> Miscellaneous form).
+  const finalRequestType = resolveRequestType(purpose)
+
   try {
     const referenceId = await generateReferenceId()
 
@@ -315,6 +331,7 @@ const createCashRequest = async (req, res) => {
         [Cash.Request.cols.purpose]: purpose,
         [Cash.Request.cols.project]: project,
         [Cash.Request.cols.amount]: requestAmount,
+        [Cash.Request.cols.request_type]: finalRequestType,
         [Cash.Request.cols.revolving_fund_id]: null,
         [Cash.Request.cols.employee_id]: employee_id,
         [Cash.Request.cols.department_id]: department_id,
@@ -336,9 +353,6 @@ const createCashRequest = async (req, res) => {
       })
       await Transaction([toTxQuery(activityQuery)])
     } catch (txError) {
-      // Compensate: the request row committed above, but its activity log
-      // failed — remove the orphaned request rather than leave a Cash
-      // Request with no creation record.
       try {
         const { sql: delSql, bindings: delBindings } = SQL.model(Cash.Request)
           .delete()
@@ -358,6 +372,7 @@ const createCashRequest = async (req, res) => {
       message: 'Cash request created successfully',
       id: newRequestId,
       reference_id: referenceId,
+      request_type: finalRequestType,
     })
   } catch (error) {
     return handleServerError(res, 'createCashRequest', error, 'Error creating cash request')
@@ -509,7 +524,8 @@ const rejectCashRequest = async (req, res) => {
  *              modeled as re-entering the Team Leader queue. Never touches
  *              revolving_fund_id, cv_number, or status fields beyond the
  *              reset above — those are owned by the approval stages, not
- *              by an edit.
+ *              by an edit. Changing the purpose re-derives request_type so
+ *              the liquidation form stays in sync with the purpose.
  */
 const updateCashRequest = async (req, res) => {
   // #swagger.tags = ['Cash Request']
@@ -551,7 +567,10 @@ const updateCashRequest = async (req, res) => {
 
     const updateData = { [Cash.Request.cols.status]: CR_STATUS.PENDING }
     if (project !== undefined) updateData[Cash.Request.cols.project] = project
-    if (purpose !== undefined) updateData[Cash.Request.cols.purpose] = purpose
+    if (purpose !== undefined) {
+      updateData[Cash.Request.cols.purpose] = purpose
+      updateData[Cash.Request.cols.request_type] = resolveRequestType(purpose)
+    }
     if (amount !== undefined) {
       const newAmount = parseNum(amount)
       if (newAmount <= 0) {
@@ -985,6 +1004,8 @@ const checkCashRequestEligibility = async (req, res) => {
  *                  Liquidation already exists for this request, and its
  *                  current stage — drives the Liquidate button's
  *                  visibility on the Cash Request page.
+ *                - request_type: TRAVEL EXPENSES or BUDGET — decides
+ *                  which liquidation form the frontend shows.
  *              Stays raw SQL rather than the query builder for the same
  *              reason getBudgetBudget does — aliased derived joins the
  *              builder doesn't support.
@@ -1026,6 +1047,7 @@ const getCashRequest = async (req, res) => {
          cr.cr_purpose AS purpose,
          cr.cr_project AS project,
          cr.cr_amount AS amount,
+         cr.cr_request_type AS request_type,
          cr.cr_revolving_fund_id AS revolving_fund_id,
          cr.cr_employee_id AS employee_id,
          cr.cr_department_id AS department_id,

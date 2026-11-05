@@ -69,6 +69,10 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: false,
       },
+      cr_request_type: {
+        type: Sequelize.ENUM('BUDGET', 'TRAVEL EXPENSES'),
+        allowNull: false,
+      },
       cr_status: {
         type: Sequelize.ENUM('PENDING', 'APPROVED', 'COMPLETED', 'REJECTED'),
         defaultValue: 'PENDING',

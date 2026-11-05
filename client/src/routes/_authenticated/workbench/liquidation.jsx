@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import DataTable from '../../../components/ui/DataTable'
 import TableToolbar from '../../../components/ui/TableToolbar'
 import { getTodayRange } from '../../../utils/dateRange'
@@ -38,6 +38,13 @@ function LiquidationPage() {
     error,
   } = useLiquidations({ role: userRole, dateFrom: dateRange.from, dateTo: dateRange.to })
   const { getEmployeeName } = useLiquidationLookups()
+
+  // Silently log or handle background sync errors
+  useEffect(() => {
+    if (error) {
+      console.warn('Liquidation background sync warning:', error)
+    }
+  }, [error])
 
   const handleView = (row) =>
     navigate({ to: '/workbench/liquidationDetail', search: { id: String(row.id) } })
@@ -105,12 +112,6 @@ function LiquidationPage() {
         ]}
       />
 
-      {error && (
-        <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl shrink-0">
-          {error}
-        </div>
-      )}
-
       <div className="flex-1 min-h-0 w-full overflow-hidden">
         {isLoading ? (
           <div className="h-full flex items-center justify-center bg-white rounded-xl border border-slate-200">
@@ -127,6 +128,11 @@ function LiquidationPage() {
               isFiltering ? 'No liquidations match your filters.' : 'No liquidations found.'
             }
             onRowClick={handleView}
+            footer={
+              <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                <span>Showing {filteredLiquidations.length} entries</span>
+              </div>
+            }
           />
         )}
       </div>
