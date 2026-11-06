@@ -41,8 +41,32 @@ const NON_ISSUABLE_RF_STATUSES = ['CLOSED', 'CLEARED', 'RETURN']
 const TRAVEL_REGEX =
   /travel expenses|travel|new store|renovation|installation|maintenance|cable pulling|transportation allowance|travel allowance|cable pulling allowance|transportation expenses|deployment|deploy|deployed|transporation|transpo|preventive maintenance|rotation|pick-?up/i
 
-const resolveRequestType = (purpose) =>
-  typeof purpose === 'string' && TRAVEL_REGEX.test(purpose) ? 'TRAVEL EXPENSES' : 'BUDGET'
+// Rotation/Pick-up is always travel, regardless of what the client sends.
+const FORCED_TRAVEL_REGEX = /rotation|pick-?up/i
+
+const REQUEST_TYPES = {
+  TRAVEL: 'TRAVEL EXPENSES',
+  BUDGET: 'BUDGET',
+}
+
+const isTravelPurpose = (purpose) => typeof purpose === 'string' && TRAVEL_REGEX.test(purpose)
+
+/**
+ * Resolution order:
+ *   1. Rotation/Pick-up purposes -> always TRAVEL EXPENSES
+ *   2. A valid request_type sent by the client (derived from Slink) wins
+ *   3. Otherwise fall back to the purpose regex
+ */
+const resolveRequestType = (purpose, requestType) => {
+  if (typeof purpose === 'string' && FORCED_TRAVEL_REGEX.test(purpose)) {
+    return REQUEST_TYPES.TRAVEL
+  }
+
+  const sentType = typeof requestType === 'string' ? requestType.trim().toUpperCase() : ''
+  if (Object.values(REQUEST_TYPES).includes(sentType)) return sentType
+
+  return isTravelPurpose(purpose) ? REQUEST_TYPES.TRAVEL : REQUEST_TYPES.BUDGET
+}
 
 // ==========================================
 // SHARED HELPERS
@@ -288,7 +312,16 @@ const createCashRequest = async (req, res) => {
   */
 
   const userId = getRequestUserId(req)
-  const { project, purpose, amount, employee_id, department_id, team_lead, request_date } = req.body
+  const {
+    project,
+    purpose,
+    amount,
+    employee_id,
+    department_id,
+    team_lead,
+    request_date,
+    request_type,
+  } = req.body
 
   if (
     !project ||
@@ -319,7 +352,7 @@ const createCashRequest = async (req, res) => {
 
   // Request type decides which liquidation form is used later
   // (TRAVEL EXPENSES -> Travel form, BUDGET -> Miscellaneous form).
-  const finalRequestType = resolveRequestType(purpose)
+  const finalRequestType = resolveRequestType(purpose, request_type)
 
   try {
     const referenceId = await generateReferenceId()
@@ -544,8 +577,17 @@ const updateCashRequest = async (req, res) => {
   */
 
   const userId = getRequestUserId(req)
-  const { id, project, purpose, amount, employee_id, department_id, team_lead, request_date } =
-    req.body
+  const {
+    id,
+    project,
+    purpose,
+    amount,
+    employee_id,
+    department_id,
+    team_lead,
+    request_date,
+    request_type,
+  } = req.body
 
   if (!id) return respond.badRequest(res, 'Missing required field: id')
 
@@ -569,7 +611,15 @@ const updateCashRequest = async (req, res) => {
     if (project !== undefined) updateData[Cash.Request.cols.project] = project
     if (purpose !== undefined) {
       updateData[Cash.Request.cols.purpose] = purpose
-      updateData[Cash.Request.cols.request_type] = resolveRequestType(purpose)
+
+      // Rotation/Pick-up is always travel. Otherwise only change the stored type
+      // when the client sent one (the frontend omits it when Slink is unreachable).
+      const nextType = FORCED_TRAVEL_REGEX.test(purpose)
+        ? REQUEST_TYPES.TRAVEL
+        : request_type
+          ? resolveRequestType(purpose, request_type)
+          : undefined
+      if (nextType) updateData[Cash.Request.cols.request_type] = nextType
     }
     if (amount !== undefined) {
       const newAmount = parseNum(amount)

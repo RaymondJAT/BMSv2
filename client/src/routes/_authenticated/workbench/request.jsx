@@ -5,6 +5,7 @@ import TableToolbar from '../../../components/ui/TableToolbar'
 import Toast from '../../../components/ui/Toast'
 import { getTodayRange } from '../../../utils/dateRange'
 import { getLiquidationTypeForRequest } from '../../../utils/requestType'
+import { isTicketRequiredPosition } from '../../../utils/liquidationTickets'
 import StatCard from '../../../components/ui/StatCard'
 import { Plus, FileSpreadsheet, Loader2 } from 'lucide-react'
 import { createRequestColumns } from '../../../table-columns/requestColumns'
@@ -21,6 +22,8 @@ import { useCashRequestLookups } from '../../../hooks/useCashRequestLookups'
 import useLiquidationMasterData from '../../../hooks/useLiquidationMasterData'
 import { useCashRequestEligibility } from '../../../hooks/useCashRequestEligibility'
 import { useLiquidationWorkflow } from '../../../hooks/useLiquidationWorkflow'
+import { useSlinkTicketStatus, TICKET_STATUS } from '../../../hooks/useSlinkTicketStatus'
+import { useSlinkLiquidationCheck } from '../../../hooks/useSlinkLiquidationCheck'
 
 export const Route = createFileRoute('/_authenticated/workbench/request')({
   component: CashRequestPage,
@@ -33,6 +36,7 @@ function CashRequestPage() {
   const { user: currentUser } = useAuth()
   const userRole = currentUser?.access_name || null
   const currentEmployeeId = currentUser?.employee_id || currentUser?.id || null
+  const positionName = currentUser?.position_name || currentUser?.position || ''
 
   const canCreate = CREATE_ROLES.includes(userRole)
   const showStatusFilter = STATUS_FILTER_ROLES.includes(userRole)
@@ -44,9 +48,32 @@ function CashRequestPage() {
 
   // Toast State
   const [toast, setToast] = useState({ isOpen: false, message: '', variant: 'warning' })
-  const showToast = (message, variant = 'warning') => {
+  const showToast = useCallback((message, variant = 'warning') => {
     setToast({ isOpen: true, message, variant })
-  }
+  }, [])
+
+  // ── Slink ────────────────────────────────────────────────────────
+  const ticketRequired = isTicketRequiredPosition(positionName)
+
+  // Open ticket -> TRAVEL EXPENSES, otherwise BUDGET (not chosen by the user).
+  // Only creators need this, so other roles never call Slink for it.
+  const {
+    ticketStatus,
+    requestType,
+    refresh: refreshTicketStatus,
+  } = useSlinkTicketStatus({
+    employeeId: currentEmployeeId,
+    ticketRequired,
+    enabled: canCreate,
+  })
+
+  const { checkLiquidation, isChecking: isCheckingLiquidation } = useSlinkLiquidationCheck({
+    employeeId: currentEmployeeId,
+    positionName,
+  })
+
+  // Ticket rows prefilled into the liquidation form (travel requests only).
+  const [ticketRows, setTicketRows] = useState([])
 
   const {
     revolvingFunds,
@@ -100,6 +127,13 @@ function CashRequestPage() {
   const closeModal = useCallback(() => setModal({ type: null, request: null }), [])
 
   const handleCreateClick = useCallback(() => {
+    // Slink couldn't be reached (or is still answering): don't guess the
+    // request type. Retry and let the user try again.
+    if (ticketStatus === TICKET_STATUS.UNKNOWN) {
+      showToast('Checking your ticket status with Slink — please try again in a moment.', 'warning')
+      refreshTicketStatus()
+      return
+    }
     if (!eligibility.eligible) {
       showToast(
         eligibility.message ||
@@ -109,7 +143,59 @@ function CashRequestPage() {
       return
     }
     openModal('create')
-  }, [eligibility, openModal])
+  }, [ticketStatus, eligibility, openModal, showToast, refreshTicketStatus])
+
+  // Inject the Slink-derived request_type into the payload. The backend still
+  // forces Rotation/Pick-up to TRAVEL EXPENSES and falls back to its purpose
+  // regex if no type is sent.
+  const handleCreateRequest = useCallback(
+    async (payload) => {
+      const result = await createRequest({ ...payload, request_type: requestType })
+      if (result?.success) refreshTicketStatus()
+      return result
+    },
+    [createRequest, requestType, refreshTicketStatus],
+  )
+
+  const handleUpdateRequest = useCallback(
+    (payload) =>
+      editRequest(
+        payload.id,
+        ticketStatus === TICKET_STATUS.UNKNOWN
+          ? payload
+          : { ...payload, request_type: requestType },
+      ),
+    [editRequest, ticketStatus, requestType],
+  )
+
+  // Liquidate: ask Slink first. Only open the modal when allowed.
+  const handleLiquidate = useCallback(
+    async (row) => {
+      if (isCheckingLiquidation) return
+      const result = await checkLiquidation(row)
+
+      if (result.error) {
+        showToast('Could not reach Slink to verify tickets. Please try again.', 'warning')
+        return
+      }
+      if (!result.allowed) {
+        showToast(
+          "Slink hasn't cleared this request for liquidation yet. Resolve your open tickets first.",
+          'warning',
+        )
+        return
+      }
+
+      setTicketRows(result.rows)
+      openLiquidate(row)
+    },
+    [checkLiquidation, isCheckingLiquidation, openLiquidate, showToast],
+  )
+
+  const handleCloseLiquidate = useCallback(() => {
+    setTicketRows([])
+    closeLiquidate()
+  }, [closeLiquidate])
 
   const handleSelectionChange = useCallback((keys) => setSelectedIds(keys), [])
 
@@ -137,7 +223,7 @@ function CashRequestPage() {
         onEdit: (row) => openModal('edit', row),
         onApprove: (row) => openModal('approve', row),
         onComplete: (row) => openModal('disburse', row),
-        onLiquidate: openLiquidate,
+        onLiquidate: handleLiquidate,
         onViewLiquidation: viewLiquidation,
         getEmployeeName,
         getDepartmentName,
@@ -147,7 +233,7 @@ function CashRequestPage() {
       userRole,
       currentEmployeeId,
       openModal,
-      openLiquidate,
+      handleLiquidate,
       viewLiquidation,
       getEmployeeName,
       getDepartmentName,
@@ -274,8 +360,8 @@ function CashRequestPage() {
         <CreateCashRequestModal
           isOpen
           onClose={closeModal}
-          onCreate={createRequest}
-          onUpdate={(payload) => editRequest(payload.id, payload)}
+          onCreate={handleCreateRequest}
+          onUpdate={handleUpdateRequest}
           isSubmitting={isMutating}
           currentUser={currentUser}
           employees={employees}
@@ -327,11 +413,12 @@ function CashRequestPage() {
       {liquidateTarget && (
         <CreateLiquidationModal
           isOpen
-          onClose={closeLiquidate}
+          onClose={handleCloseLiquidate}
           onCreate={createLiquidation}
           isSubmitting={isLiquidating}
           cashRequest={liquidateTarget}
           liquidationType={getLiquidationTypeForRequest(liquidateTarget)}
+          ticketRows={ticketRows}
           cashReceived={liquidateTarget.disbursement_amount}
           districts={districts}
           particulars={particulars}

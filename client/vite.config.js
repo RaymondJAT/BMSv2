@@ -4,6 +4,19 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
+const injectSlinkAuth = (env) => (proxy) => {
+  proxy.on('proxyReq', (proxyReq) => {
+    proxyReq.setHeader('Authorization', `Bearer ${env.VITE_SLINK_API_KEY}`)
+  })
+  proxy.on('error', (err, req, res) => {
+    console.error(`[proxy /bms error] ${req.method} ${req.url} ->`, err.message)
+    if (res && !res.headersSent && typeof res.writeHead === 'function') {
+      res.writeHead(502, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Upstream proxy error', message: err.message }))
+    }
+  })
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, path.resolve(__dirname, '..'), '')
 
@@ -30,6 +43,11 @@ export default defineConfig(({ mode }) => {
       ws: true,
       changeOrigin: true,
       secure: false,
+    },
+    '/bms': {
+      target: env.VITE_SLINK_API,
+      changeOrigin: true,
+      configure: injectSlinkAuth(env),
     },
   }
 

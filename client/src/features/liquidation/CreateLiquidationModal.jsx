@@ -24,6 +24,19 @@ const emptyItem = () => ({
   receipts: [],
 })
 
+// Stable default for the `ticketRows` prop. It sits in a useEffect dependency
+// array, so an inline `[]` default (a new array every render) would re-run the
+// effect constantly and wipe whatever the user typed.
+const NO_TICKET_ROWS = []
+
+const ticketRowToItem = (row) => ({
+  ...emptyItem(),
+  date: row.date || new Date().toISOString().slice(0, 10),
+  rt: row.rt || '',
+  store_name: row.store_value || row.store_name || '',
+  purpose: row.purpose || row.reason || '',
+})
+
 const TRAVEL_GRID_COLS =
   'grid-cols-[110px_70px_190px_260px_260px_170px_170px_160px_110px_160px_110px]'
 // fr-based, not fixed px — MISC_GRID_COLS' container is w-full (see below),
@@ -137,6 +150,7 @@ export default function CreateLiquidationModal({
   isSubmitting,
   cashRequest,
   liquidationType: liquidationTypeProp = null,
+  ticketRows = NO_TICKET_ROWS,
   cashReceived,
   editingLiquidation = null,
   districts = [],
@@ -152,6 +166,7 @@ export default function CreateLiquidationModal({
   // BUDGET -> Miscellaneous), not chosen by the user. An explicit prop
   // wins; otherwise an existing liquidation keeps the type already saved
   // on its lines; otherwise it's derived from the cash request.
+  // Always resolves to 'TRAVEL' or 'MISCELLANEOUS'.
   const liquidationType = useMemo(() => {
     if (liquidationTypeProp) return liquidationTypeProp
     const savedType = editingLiquidation?.items?.[0]?.type
@@ -159,6 +174,8 @@ export default function CreateLiquidationModal({
     if (cashRequest) return getLiquidationTypeForRequest(cashRequest)
     return 'TRAVEL'
   }, [liquidationTypeProp, cashRequest, editingLiquidation])
+
+  const isTravel = liquidationType === 'TRAVEL'
 
   const [items, setItems] = useState([emptyItem()])
   const [formError, setFormError] = useState(null)
@@ -237,8 +254,12 @@ export default function CreateLiquidationModal({
           : [emptyItem()],
       )
       setLineErrors({})
+    } else if (isTravel && ticketRows.length > 0) {
+      // Prefill one line per Slink ticket (travel liquidations only).
+      setItems(ticketRows.map(ticketRowToItem))
+      setLineErrors({})
     }
-  }, [isOpen, editingLiquidation])
+  }, [isOpen, editingLiquidation, ticketRows, isTravel])
 
   const cashReceivedAmount =
     parseFloat(isEditMode ? editingLiquidation?.amount_obtained : cashReceived) || 0
@@ -347,8 +368,6 @@ export default function CreateLiquidationModal({
       ),
     )
   }
-
-  const isTravel = liquidationType === 'TRAVEL'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
