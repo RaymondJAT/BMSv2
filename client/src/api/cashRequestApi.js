@@ -78,6 +78,14 @@ export const cashRequestApi = {
     const response = await apiClient.get('/cash-request/activity', { params })
     return response.data || []
   },
+
+  // Wallet balance: cash on hand from completed, unliquidated requests.
+  getWallet: async (employeeId) => {
+    const response = await apiClient.get('/cash-request/wallet', {
+      params: { employee_id: employeeId },
+    })
+    return response.data
+  },
 }
 
 export default cashRequestApi

@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
 import {
   RefreshCw,
   Loader2,
@@ -11,6 +10,7 @@ import {
   KeyRound,
 } from 'lucide-react'
 import StatCard from '../../../components/ui/StatCard'
+import Button from '../../../components/ui/Button'
 import useSynchronize from '../../../hooks/useSynchronize'
 
 export const Route = createFileRoute('/_authenticated/master/synchronize')({
@@ -40,19 +40,14 @@ function SynchronizePage() {
           Fetches a fresh token from HRMIS and pulls the latest data automatically — no manual token
           needed.
         </p>
-        <button
-          type="button"
-          onClick={handleRun}
-          disabled={isSyncing}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#E31837] hover:bg-[#c4122e] text-white font-bold text-xs rounded-lg transition-colors cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-        >
+        <Button variant="primary" onClick={handleRun} disabled={isSyncing} className="shrink-0">
           {isSyncing ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
           ) : (
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
           )}
           {isSyncing ? 'Synchronizing...' : 'Run Synchronization'}
-        </button>
+        </Button>
       </div>
 
       {error && (

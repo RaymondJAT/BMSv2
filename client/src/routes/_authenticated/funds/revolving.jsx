@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useMemo, useCallback } from 'react'
 import DataTable from '../../../components/ui/DataTable'
 import TableToolbar from '../../../components/ui/TableToolbar'
+import Button from '../../../components/ui/Button'
 import { getTodayRange, todayStr } from '../../../utils/dateRange'
 import StatCard from '../../../components/ui/StatCard'
 import {
@@ -216,21 +217,14 @@ function RevolvingFundPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition-all shadow-2xs cursor-pointer"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+          <Button variant="outline">
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 mr-1.5" />
             Export
-          </button>
-          <button
-            type="button"
-            onClick={() => handleOpenCreateModal()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E31837] hover:bg-[#c4122e] text-white font-bold text-xs rounded-lg transition-colors cursor-pointer shadow-xs"
-          >
-            <Plus className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="primary" onClick={() => handleOpenCreateModal()}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
             Create Fund
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -315,13 +309,13 @@ function RevolvingFundPage() {
                 ? error
                 : error?.message || 'An unexpected error occurred.'}
             </p>
-            <button
-              type="button"
+            <Button
+              variant="outline"
               onClick={() => fetchRevolvingFunds?.()}
-              className="mt-3 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+              className="mt-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold"
             >
               Retry
-            </button>
+            </Button>
           </div>
         ) : (
           <DataTable

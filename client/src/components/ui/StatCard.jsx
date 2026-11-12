@@ -24,7 +24,6 @@ export default function StatCard({
   variant = 'red',
   loading = false,
 }) {
-  // Variant theme mapping - Red variant elevated to a soft maroon accent
   const variants = {
     red: {
       badge: 'bg-rose-50 text-rose-900 border-rose-200/80',

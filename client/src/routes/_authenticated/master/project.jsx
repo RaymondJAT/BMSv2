@@ -2,23 +2,22 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useMemo, useCallback } from 'react'
 import DataTable from '../../../components/ui/DataTable'
 import StatCard from '../../../components/ui/StatCard'
+import Button from '../../../components/ui/Button'
+import TableToolbar from '../../../components/ui/TableToolbar'
 import ProjectModal from '../../../features/project/ProjectModal'
-import {
-  Search,
-  Filter,
-  Plus,
-  Briefcase,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  AlertCircle,
-} from 'lucide-react'
+import { Briefcase, CheckCircle2, XCircle, Loader2, AlertCircle, Plus } from 'lucide-react'
 import { createProjectColumns } from '../../../table-columns/projectColumns'
 import { useProjects } from '../../../hooks/useProjects'
 
 export const Route = createFileRoute('/_authenticated/master/project')({
   component: ProjectsPage,
 })
+
+const STATUS_FILTER_OPTIONS = [
+  { value: 'ALL', label: 'All Statuses' },
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'INACTIVE', label: 'Inactive' },
+]
 
 export default function ProjectsPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -72,6 +71,19 @@ export default function ProjectsPage() {
 
   const columns = useMemo(() => createProjectColumns({ onEdit: handleEdit }), [handleEdit])
 
+  const toolbarFilters = useMemo(
+    () => [
+      {
+        key: 'status',
+        label: 'Status',
+        value: statusFilter,
+        onChange: setStatusFilter,
+        options: STATUS_FILTER_OPTIONS,
+      },
+    ],
+    [statusFilter],
+  )
+
   return (
     <div className="w-full h-full flex-1 flex flex-col min-h-0 space-y-3 overflow-hidden">
       {/* Header */}
@@ -86,14 +98,10 @@ export default function ProjectsPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={handleCreate}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E31837] hover:bg-[#c4122e] text-white font-bold text-xs rounded-lg transition-colors cursor-pointer shadow-xs"
-          >
-            <Plus className="w-3.5 h-3.5" />
+          <Button variant="primary" onClick={handleCreate}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
             New Project
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -122,35 +130,13 @@ export default function ProjectsPage() {
         />
       </div>
 
-      {/* Toolbar & Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 bg-white py-2 px-3 rounded-xl border border-slate-200/80 shrink-0">
-        <div className="relative w-full sm:w-72">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search Project Name..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E31837] focus:border-transparent transition-all"
-          />
-        </div>
-
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <span>Status:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer text-xs"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-            </select>
-          </div>
-        </div>
-      </div>
+      {/* Toolbar & Filters (Date range omitted automatically) */}
+      <TableToolbar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search Project Name..."
+        filters={toolbarFilters}
+      />
 
       {/* Data Table */}
       <div className="flex-1 min-h-0 w-full overflow-hidden">

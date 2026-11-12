@@ -3,13 +3,6 @@ import { Select, Spin } from 'antd'
 
 const DEBOUNCE_MS = 350
 
-/**
- * Debounced, server-backed searchable select. `fetchOptions(term)` is
- * called only after the user pauses typing for DEBOUNCE_MS — never on
- * every keystroke. Stale responses (a fast typist's earlier keystroke
- * resolving after a later one) are discarded via a request-id guard so
- * the dropdown never flashes outdated results.
- */
 export default function RemoteSearchSelect({
   value,
   onChange,
@@ -23,9 +16,6 @@ export default function RemoteSearchSelect({
   const debounceRef = useRef(null)
   const latestQueryRef = useRef(0)
 
-  // If the parent's initial (top-N) list arrives after mount, adopt it —
-  // but only while nothing has been searched yet, so an in-progress
-  // search's results are never clobbered by a late-arriving initial list.
   useEffect(() => {
     setOptions((prev) => (prev.length === 0 ? initialOptions : prev))
   }, [initialOptions])

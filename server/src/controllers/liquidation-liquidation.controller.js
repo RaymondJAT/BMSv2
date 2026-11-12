@@ -3,6 +3,7 @@ const { resolveDateRange, addDateCondition } = require('../utilities/dateRange.u
 const { Liquidation } = require('../database/models/Liquidation')
 const { Cash } = require('../database/models/Cash')
 const { Revolving } = require('../database/models/Revolving')
+const { ensureWalletId, buildWalletPosting } = require('../utilities/wallet.util')
 const SQL = new SQLQueryBuilder()
 
 // ==========================================
@@ -1051,6 +1052,7 @@ const verifyLiquidation = async (req, res) => {
     }
 
     const referenceId = toReferenceId(id)
+    const walletId = await ensureWalletId(cd[Cash.Disbursement.cols.received_by])
 
     // Standalone insert first — its generated id feeds its own activity
     // insert below, and Transaction() can't return generated ids mid-batch.
@@ -1197,6 +1199,18 @@ const verifyLiquidation = async (req, res) => {
         ),
       )
     }
+
+    // Settlement clears the cash the requester was holding.
+    queries.push(
+      ...buildWalletPosting({
+        walletId,
+        type: 'DEBIT',
+        amount: cashReceived,
+        referenceType: 'LIQUIDATION',
+        referenceId: id,
+        remarks: `Cash cleared by Liquidation ${referenceId}`,
+      }),
+    )
 
     try {
       await Transaction(queries)

@@ -2,22 +2,21 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useMemo, useCallback } from 'react'
 import DataTable from '../../../components/ui/DataTable'
 import StatCard from '../../../components/ui/StatCard'
-import {
-  Search,
-  Filter,
-  FileSpreadsheet,
-  Users,
-  UserCheck,
-  Clock,
-  Loader2,
-  AlertCircle,
-} from 'lucide-react'
+import Button from '../../../components/ui/Button'
+import TableToolbar from '../../../components/ui/TableToolbar'
+import { FileSpreadsheet, Users, UserCheck, Clock, Loader2, AlertCircle } from 'lucide-react'
 import { createEmployeeColumns } from '../../../table-columns/employeeColumns'
 import { useEmployeeLookups } from '../../../hooks/useEmployeeLookups'
 
 export const Route = createFileRoute('/_authenticated/master/employees')({
   component: EmployeesPage,
 })
+
+const STATUS_FILTER_OPTIONS = [
+  { value: 'ALL', label: 'All Statuses' },
+  { value: 'REGULAR', label: 'Regular' },
+  { value: 'PROBATIONARY', label: 'Probationary' },
+]
 
 export default function EmployeesPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -65,6 +64,19 @@ export default function EmployeesPage() {
 
   const columns = useMemo(() => createEmployeeColumns({ onEdit: handleEdit }), [handleEdit])
 
+  const toolbarFilters = useMemo(
+    () => [
+      {
+        key: 'status',
+        label: 'Status',
+        value: statusFilter,
+        onChange: setStatusFilter,
+        options: STATUS_FILTER_OPTIONS,
+      },
+    ],
+    [statusFilter],
+  )
+
   return (
     <div className="w-full h-full flex-1 flex flex-col min-h-0 space-y-3 overflow-hidden">
       {/* Header */}
@@ -79,13 +91,10 @@ export default function EmployeesPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition-all shadow-2xs cursor-pointer"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+          <Button variant="outline">
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 mr-1.5" />
             Export
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -114,35 +123,13 @@ export default function EmployeesPage() {
         />
       </div>
 
-      {/* Toolbar & Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 bg-white py-2 px-3 rounded-xl border border-slate-200/80 shrink-0">
-        <div className="relative w-full sm:w-72">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search Employee Name, Dept, or Role..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E31837] focus:border-transparent transition-all"
-          />
-        </div>
-
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <span>Status:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer text-xs"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="REGULAR">Regular</option>
-              <option value="PROBATIONARY">Probationary</option>
-            </select>
-          </div>
-        </div>
-      </div>
+      {/* Toolbar & Filters (Date range omitted automatically) */}
+      <TableToolbar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search Employee Name, Dept, or Role..."
+        filters={toolbarFilters}
+      />
 
       {/* Data Table */}
       <div className="flex-1 min-h-0 w-full overflow-hidden">

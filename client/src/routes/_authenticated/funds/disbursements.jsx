@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useMemo, useCallback } from 'react'
 import DataTable from '../../../components/ui/DataTable'
 import TableToolbar from '../../../components/ui/TableToolbar'
+import Button from '../../../components/ui/Button'
 import { getTodayRange } from '../../../utils/dateRange'
 import StatCard from '../../../components/ui/StatCard'
 import {
@@ -132,21 +133,14 @@ function DisbursementsPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition-all shadow-2xs cursor-pointer"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+          <Button variant="outline">
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 mr-1.5" />
             Export
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E31837] hover:bg-[#c4122e] text-white font-bold text-xs rounded-lg transition-colors cursor-pointer shadow-xs"
-          >
-            <Plus className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="primary" onClick={() => setIsCreateOpen(true)}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
             New Disbursement
-          </button>
+          </Button>
         </div>
       </div>
 

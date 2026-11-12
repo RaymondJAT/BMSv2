@@ -67,13 +67,21 @@
  * @property {'mw_employee_id'} employee_id
  * @property {'mw_previous_amount'} previous_amount
  * @property {'mw_current_amount'} current_amount
+ * @property {'mw_createdAt'} createdAt
+ * @property {'mw_updatedAt'} updatedAt
  */
 
 /**
  * @typedef {Object} WalletActivityCols
  * @property {'mwa_id'} id
  * @property {'mwa_wallet_id'} wallet_id
- * @property {'mwa_date'} date
+ * @property {'mwa_type'} type
+ * @property {'mwa_amount'} amount
+ * @property {'mwa_previous_balance'} previous_balance
+ * @property {'mwa_new_balance'} new_balance
+ * @property {'mwa_reference_type'} reference_type
+ * @property {'mwa_reference_id'} reference_id
+ * @property {'mwa_remarks'} remarks
  * @property {'mwa_createdAt'} createdAt
  */
 
@@ -221,8 +229,10 @@ const Master = {
       employee_id: 'mw_employee_id',
       previous_amount: 'mw_previous_amount',
       current_amount: 'mw_current_amount',
+      createdAt: 'mw_createdAt',
+      updatedAt: 'mw_updatedAt',
     },
-    select: ['mw_id', 'mw_employee_id', 'mw_previous_amount', 'mw_current_amount'],
+    select: ['mw_id', 'mw_employee_id', 'mw_previous_amount', 'mw_current_amount', 'mw_createdAt', 'mw_updatedAt'],
     insert: ['mw_employee_id', 'mw_previous_amount', 'mw_current_amount'],
   },
   WalletActivity: {
@@ -233,11 +243,17 @@ const Master = {
     cols: {
       id: 'mwa_id',
       wallet_id: 'mwa_wallet_id',
-      date: 'mwa_date',
+      type: 'mwa_type',
+      amount: 'mwa_amount',
+      previous_balance: 'mwa_previous_balance',
+      new_balance: 'mwa_new_balance',
+      reference_type: 'mwa_reference_type',
+      reference_id: 'mwa_reference_id',
+      remarks: 'mwa_remarks',
       createdAt: 'mwa_createdAt',
     },
-    select: ['mwa_id', 'mwa_wallet_id', 'mwa_date', 'mwa_createdAt'],
-    insert: ['mwa_wallet_id'],
+    select: ['mwa_id', 'mwa_wallet_id', 'mwa_type', 'mwa_amount', 'mwa_previous_balance', 'mwa_new_balance', 'mwa_reference_type', 'mwa_reference_id', 'mwa_remarks', 'mwa_createdAt'],
+    insert: ['mwa_wallet_id', 'mwa_type', 'mwa_amount', 'mwa_previous_balance', 'mwa_new_balance', 'mwa_reference_type', 'mwa_reference_id', 'mwa_remarks'],
   },
   District: {
     table: 'master_district',

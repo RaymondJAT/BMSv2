@@ -11,7 +11,7 @@ const options = {
   cookie: {
     httpOnly: true,
     sameSite: 'lax',
-    secure: false,
+    secure: process.env.COOKIE_SECURE === 'true',
   },
 }
 

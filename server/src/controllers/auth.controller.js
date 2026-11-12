@@ -6,10 +6,15 @@ const { EncryptString, DecryptString } = require('../utilities/cryptography.util
 console.log('SECRET LOADED:', JSON.stringify(process.env.SECRET_KEY))
 
 const JWT_SECRET = process.env.SECRET_KEY
-// Two prior reference implementations disagree on this — one used "20d",
-// one used "24h". Defaulting to 20d; change to "24h" if that's the
-// intended value.
-const JWT_EXPIRES_IN = '20d'
+// Session lifetime cap. Override with JWT_EXPIRES_IN in .env.
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '12h'
+
+// express-session cookie name (see session.startup.js).
+const SESSION_COOKIE_NAME = process.env.SESSION_COLLECTION || 'connect.sid'
+
+// Issue a fresh session id on login to prevent session fixation.
+const regenerateSession = (req) =>
+  new Promise((resolve, reject) => req.session.regenerate((err) => (err ? reject(err) : resolve())))
 
 // ==========================================
 // SHARED HELPERS
@@ -171,21 +176,19 @@ const login = async (req, res) => {
     const profile = buildUserProfile(user, employee)
     const token = signToken(user, profile.fullname)
 
-    if (req.session) {
-      req.session.user = {
-        mu_id: user.mu_id,
-        mu_username: user.mu_username,
-        mu_fullname: profile.fullname,
-        mu_access: user.mu_access_id,
-        mu_status: user.mu_status,
-      }
-      req.session.jwt = token
+    await regenerateSession(req)
+    req.session.user = {
+      mu_id: user.mu_id,
+      mu_username: user.mu_username,
+      mu_fullname: profile.fullname,
+      mu_access: user.mu_access_id,
+      mu_status: user.mu_status,
     }
+    req.session.jwt = token
 
     return res.status(200).json({
       success: true,
       message: 'Login successful',
-      token,
       data: profile,
     })
   } catch (error) {
@@ -202,10 +205,14 @@ const login = async (req, res) => {
  *              frontend discarding its stored token.
  */
 const logout = async (req, res) => {
+  const clearCookie = () => res.clearCookie(SESSION_COOKIE_NAME, { path: '/' })
+
   if (!req.session) {
+    clearCookie()
     return res.status(200).json({ message: 'Logout successful' })
   }
   req.session.destroy((err) => {
+    clearCookie()
     if (err) {
       return res.status(500).json({ message: 'Logout failed', error: err.message })
     }

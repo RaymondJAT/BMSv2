@@ -2,9 +2,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useMemo, useCallback } from 'react'
 import DataTable from '../../../components/ui/DataTable'
 import StatCard from '../../../components/ui/StatCard'
+import Button from '../../../components/ui/Button'
+import TableToolbar from '../../../components/ui/TableToolbar'
 import {
-  Search,
-  Filter,
   FileSpreadsheet,
   Plus,
   ShieldCheck,
@@ -22,6 +22,12 @@ import { masterAccessApi } from '../../../api/masterAccessApi'
 export const Route = createFileRoute('/_authenticated/master/access')({
   component: AccessPage,
 })
+
+const STATUS_FILTER_OPTIONS = [
+  { value: 'ALL', label: 'All Statuses' },
+  { value: 'ACTIVE', label: 'ACTIVE' },
+  { value: 'INACTIVE', label: 'INACTIVE' },
+]
 
 function AccessPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -117,10 +123,6 @@ function AccessPage() {
     })
   }, [accessRoles, searchTerm, statusFilter])
 
-  // NOTE: accessColumns.jsx's createAccessColumns expects an `onPermissions`
-  // prop (that's what the key-icon button calls) — the previous version of
-  // this file passed `onEditPermissions`, which accessColumns.jsx never
-  // reads, so the button silently did nothing. Fixed here.
   const columns = useMemo(
     () =>
       createAccessColumns({
@@ -128,6 +130,19 @@ function AccessPage() {
         onPermissions: handleEditPermissions,
       }),
     [handleEdit, handleEditPermissions],
+  )
+
+  const toolbarFilters = useMemo(
+    () => [
+      {
+        key: 'status',
+        label: 'Status',
+        value: statusFilter,
+        onChange: setStatusFilter,
+        options: STATUS_FILTER_OPTIONS,
+      },
+    ],
+    [statusFilter],
   )
 
   return (
@@ -144,21 +159,14 @@ function AccessPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg transition-all shadow-2xs cursor-pointer"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+          <Button variant="outline">
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 mr-1.5" />
             Export
-          </button>
-          <button
-            type="button"
-            onClick={handleCreate}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E31837] hover:bg-[#c4132e] text-white font-semibold text-xs rounded-lg transition-all shadow-2xs cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="primary" onClick={handleCreate}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
             Add Role
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -188,34 +196,12 @@ function AccessPage() {
       </div>
 
       {/* Toolbar & Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 bg-white py-2 px-3 rounded-xl border border-slate-200/80 shrink-0">
-        <div className="relative w-full sm:w-72">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search Role Name..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E31837] focus:border-transparent transition-all"
-          />
-        </div>
-
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <span>Status:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer text-xs"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="INACTIVE">INACTIVE</option>
-            </select>
-          </div>
-        </div>
-      </div>
+      <TableToolbar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search Role Name..."
+        filters={toolbarFilters}
+      />
 
       {/* Data Table */}
       <div className="flex-1 min-h-0 w-full overflow-hidden">

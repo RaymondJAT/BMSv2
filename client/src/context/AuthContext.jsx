@@ -3,7 +3,10 @@ import { authApi } from '../api/authApi'
 import { routeAccessApi } from '../api/routeAccessApi'
 
 const AuthContext = createContext(null)
-const TOKEN_KEY = 'bms_token'
+
+// Old versions stored the JWT here. It is removed on load so nobody keeps a
+// stale 20-day token; authentication now lives only in the session cookie.
+const LEGACY_TOKEN_KEY = 'bms_token'
 
 const PROTECTED_ACCESS_NAMES = ['ADMINISTRATOR']
 const isProtectedAccessName = (name) => PROTECTED_ACCESS_NAMES.includes((name || '').toUpperCase())
@@ -40,27 +43,26 @@ export function AuthProvider({ children }) {
   }, [])
 
   const clearSession = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY)
     // Same-value updates bail out, so calling this repeatedly is harmless.
     setUser(null)
     setPermissions(EMPTY_PERMISSIONS)
     setPermissionsLoaded(true)
   }, [])
 
+  // On load/refresh the server decides, using the session cookie. If the
+  // browser was closed the cookie is gone, /auth/me returns 401, and the
+  // user lands on the login page. isLoading stays true until this finishes,
+  // so protected pages never flash.
   useEffect(() => {
+    localStorage.removeItem(LEGACY_TOKEN_KEY)
+
     const hydrate = async () => {
-      const token = localStorage.getItem(TOKEN_KEY)
-      if (!token) {
-        setIsLoading(false)
-        setPermissionsLoaded(true)
-        return
-      }
       try {
         const profile = await authApi.checkSession()
         setUser(profile)
         await loadPermissions(profile.access_id, profile.access_name)
-      } catch (err) {
-        clearSession()
+      } catch {
+        clearSession() // no session, expired, or account deactivated
       } finally {
         setIsLoading(false)
       }
@@ -80,8 +82,7 @@ export function AuthProvider({ children }) {
         if (!data?.success) {
           return { success: false, message: data?.message || 'Login failed.' }
         }
-        localStorage.setItem(TOKEN_KEY, data.token)
-        setUser(data.data)
+        setUser(data.data) // the server has already created the session
         await loadPermissions(data.data.access_id, data.data.access_name)
         return { success: true }
       } catch (err) {
@@ -96,7 +97,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
-      await authApi.logout()
+      await authApi.logout() // the server destroys the session and clears the cookie
     } catch (err) {
       console.error('Logout request failed (clearing local session anyway):', err)
     } finally {

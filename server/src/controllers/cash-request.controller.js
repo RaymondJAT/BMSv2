@@ -3,6 +3,7 @@ const { resolveDateRange, addDateCondition } = require('../utilities/dateRange.u
 const { Cash } = require('../database/models/Cash')
 const { Revolving } = require('../database/models/Revolving')
 const { hasOutstandingLiquidation } = require('./liquidation-liquidation.controller')
+const { ensureWalletId, buildWalletPosting } = require('../utilities/wallet.util')
 const SQL = new SQLQueryBuilder()
 
 // ==========================================
@@ -911,6 +912,7 @@ const completeCashRequest = async (req, res) => {
     }
 
     const finalCashVoucher = await generateCashVoucher()
+    const walletId = await ensureWalletId(cr[Cash.Request.cols.employee_id])
     const { outstanding, status: cdStatus } = computeCdStatus(requestAmount, 0, 0)
 
     // Step 1: insert the CD row on its own — its generated id is needed by
@@ -954,7 +956,15 @@ const completeCashRequest = async (req, res) => {
         userId,
         remarks,
       })
-      await Transaction(cascadeQueries.map(toTxQuery))
+      const walletQueries = buildWalletPosting({
+        walletId,
+        type: 'CREDIT',
+        amount: requestAmount,
+        referenceType: 'CASH_DISBURSEMENT',
+        referenceId: newCdId,
+        remarks: `Cash received via Cash Request ${cr[Cash.Request.cols.reference_id]} (Voucher ${finalCashVoucher})`,
+      })
+      await Transaction([...cascadeQueries.map(toTxQuery), ...walletQueries])
     } catch (txError) {
       // Compensate: the CD row committed above, but the downstream batch
       // (RF cascade + cash_request completion) failed — remove the
@@ -1159,6 +1169,38 @@ const getCashRequestActivity = async (req, res) => {
   }
 }
 
+/**
+ * @name getCashRequestWallet
+ * @description The requester's wallet: cash they currently hold from
+ *              completed, not-yet-verified cash requests. 0 if they have
+ *              no wallet yet.
+ */
+const getCashRequestWallet = async (req, res) => {
+  // #swagger.tags = ['Cash Request']
+  // #swagger.description = 'Get an employee wallet balance (cash on hand from completed, unliquidated cash requests).'
+  /*
+    #swagger.parameters['employee_id'] = { in: 'query', type: 'integer', required: true, description: 'Employee id' }
+  */
+  const { employee_id } = req.query
+  if (!employee_id) return respond.badRequest(res, 'Missing required query param: employee_id')
+
+  try {
+    const rows = await Query(
+      `SELECT mw_current_amount AS balance, mw_previous_amount AS previous_balance
+       FROM master_wallet WHERE mw_employee_id = ?`,
+      [employee_id],
+    )
+    const row = rows[0]
+    return respond.ok(res, {
+      employee_id: Number(employee_id),
+      balance: parseNum(row?.balance),
+      previous_balance: parseNum(row?.previous_balance),
+    })
+  } catch (error) {
+    return handleServerError(res, 'getCashRequestWallet', error, 'Error retrieving wallet')
+  }
+}
+
 module.exports = {
   getCashRequest,
   createCashRequest,
@@ -1168,4 +1210,5 @@ module.exports = {
   completeCashRequest,
   getCashRequestActivity,
   checkCashRequestEligibility,
+  getCashRequestWallet,
 }

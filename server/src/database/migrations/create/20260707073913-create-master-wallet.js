@@ -20,14 +20,27 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'RESTRICT',
         allowNull: false,
+        unique: true, 
       },
       mw_previous_amount: {
-        type: Sequelize.DECIMAL(10, 2),
+        type: Sequelize.DECIMAL(12, 2),
         allowNull: false,
+        defaultValue: 0,
       },
       mw_current_amount: {
-        type: Sequelize.DECIMAL(10, 2),
+        type: Sequelize.DECIMAL(12, 2),
         allowNull: false,
+        defaultValue: 0,
+      },
+      mw_createdAt: {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
+      },
+      mw_updatedAt: {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
       },
     })
   },

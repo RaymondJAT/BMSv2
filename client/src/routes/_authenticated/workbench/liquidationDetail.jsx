@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
 } from 'lucide-react'
 import DataTable from '../../../components/ui/DataTable'
+import Button from '../../../components/ui/Button'
 import { useLiquidationDetailLookups } from '../../../hooks/useLiquidationDetailLookups'
 import { useCashDisbursementLookups } from '../../../hooks/useCashDisbursementLookups'
 import { useLiquidationDetail } from '../../../hooks/useLiquidationDetail'
@@ -60,18 +61,13 @@ function SummaryField({ label, value, valueClassName = 'font-semibold text-slate
 }
 
 // One workflow action button — Edit / Approve / Verify / Finance all
-// share this exact shape (icon + label + color), so this replaces four
-// near-identical <button> blocks with one.
+// share this exact shape (icon + label + color), built on top of the reusable Button.
 function ActionButton({ icon: Icon, label, colorClassName, onClick }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-semibold cursor-pointer transition-colors ${colorClassName}`}
-    >
-      <Icon className="w-3.5 h-3.5" />
+    <Button variant="outline" onClick={onClick} className={`font-semibold ${colorClassName}`}>
+      <Icon className="w-3.5 h-3.5 mr-1.5" />
       {label}
-    </button>
+    </Button>
   )
 }
 
@@ -179,13 +175,9 @@ function LiquidationDetailPage() {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center gap-3">
         <p className="text-sm text-rose-600 font-medium">{error || 'Liquidation not found.'}</p>
-        <button
-          type="button"
-          onClick={() => navigate({ to: '/workbench/liquidation' })}
-          className="px-3.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg"
-        >
+        <Button variant="outline" onClick={() => navigate({ to: '/workbench/liquidation' })}>
           Back to Liquidations
-        </button>
+        </Button>
       </div>
     )
   }
@@ -199,14 +191,10 @@ function LiquidationDetailPage() {
     <div className="w-full h-full flex-1 flex flex-col min-h-0 space-y-3 overflow-hidden">
       {/* Top Bar Navigation & Actions */}
       <div className="flex items-center justify-between shrink-0 print:hidden flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => navigate({ to: '/workbench/liquidation' })}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg shadow-2xs cursor-pointer"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
+        <Button variant="outline" onClick={() => navigate({ to: '/workbench/liquidation' })}>
+          <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
           Back
-        </button>
+        </Button>
 
         {/* Workflow actions — only the ones the current role/status allow
             are rendered. Every decision here requires reviewing the line
@@ -246,14 +234,10 @@ function LiquidationDetailPage() {
             />
           )}
 
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg shadow-2xs cursor-pointer"
-          >
-            <Printer className="w-3.5 h-3.5" />
+          <Button variant="outline" onClick={() => window.print()}>
+            <Printer className="w-3.5 h-3.5 mr-1.5" />
             Print
-          </button>
+          </Button>
         </div>
       </div>
 

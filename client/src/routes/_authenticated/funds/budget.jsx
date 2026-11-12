@@ -1,7 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import DataTable from '../../../components/ui/DataTable'
-import { Plus, Search, Loader2 } from 'lucide-react'
+import Button from '../../../components/ui/Button'
+import TableToolbar from '../../../components/ui/TableToolbar'
+import { Plus, Loader2 } from 'lucide-react'
 
 import { createBudgetColumns } from '../../../table-columns/budgetColumns'
 import BudgetFormModal from '../../../features/budget/BudgetFormModal'
@@ -78,29 +80,19 @@ function RouteComponent() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => handleOpenModal()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E31837] hover:bg-[#c4122e] text-white font-bold text-xs rounded-lg transition-colors cursor-pointer shadow-xs"
-          >
-            <Plus className="w-3.5 h-3.5" />
+          <Button variant="primary" onClick={() => handleOpenModal()}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
             New Allocation
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* Toolbar & Search Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 bg-white py-2 px-3 rounded-xl border border-slate-200/80 shrink-0">
-        <div className="relative w-full sm:w-72">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search department, ID, or type..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E31837] focus:border-transparent transition-all"
-          />
-        </div>
-      </div>
+      {/* Toolbar & Search Filters (Date range omitted automatically) */}
+      <TableToolbar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search department, ID, or type..."
+      />
 
       {/* Global Query Error notification */}
       {error && (

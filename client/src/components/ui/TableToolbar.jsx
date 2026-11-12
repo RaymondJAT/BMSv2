@@ -1,19 +1,6 @@
 import { Search, Filter } from 'lucide-react'
 import DateRangePicker from './DateRangePicker'
 
-/**
- * Shared toolbar for the list pages: search box + optional dropdown filters
- * + date range filter.
- *
- * Props
- *  - searchTerm / onSearchChange / searchPlaceholder
- *  - filters:      [{ key, label, value, onChange, options: [{ value, label }] }]
- *                  (pass [] or omit to hide dropdown filters, e.g. for roles
- *                  that are server-scoped to one status)
- *  - dateRange / onDateRangeChange:  { from, to } as 'YYYY-MM-DD' strings.
- *                  Omit `onDateRangeChange` to hide the date filter.
- *  - children:     extra controls rendered at the end of the right side
- */
 export default function TableToolbar({
   searchTerm,
   onSearchChange,

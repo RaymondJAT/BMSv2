@@ -32,7 +32,6 @@ export default function Toast({ isOpen, message, variant = 'info', onClose, dura
       setIsAnimating(true)
       const timer = setTimeout(() => {
         setIsAnimating(false)
-        // Wait for exit transition to finish before calling parent close
         const closeTimer = setTimeout(() => onClose?.(), 200)
         return () => clearTimeout(closeTimer)
       }, duration)
