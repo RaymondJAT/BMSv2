@@ -87,6 +87,13 @@ const duplicateOf = (source) => ({
   purpose: source.purpose,
 })
 
+// A saved liquidation with no lines and nothing expended is a "no expenses"
+// (full return) liquidation. The backend stores no separate flag for it.
+const isNoExpenseLiquidation = (liquidation) =>
+  Boolean(liquidation) &&
+  (liquidation.items || []).length === 0 &&
+  (parseFloat(liquidation.amount_expended) || 0) === 0
+
 /* ------------------------------------------------------------------ */
 /* Pure helpers: formatting and options                               */
 /* ------------------------------------------------------------------ */
@@ -153,18 +160,27 @@ const getSubmitLabel = (isSubmitting, isEditMode) => {
 /* Validation helpers                                                 */
 /* ------------------------------------------------------------------ */
 
+// Same rule as v1: blank after trimming, or "N/A", counts as empty.
+// Uses String() so numeric ids (particulars, mode of transportation) work too.
+const hasValue = (value) => {
+  const text = String(value ?? '').trim()
+  return text !== '' && text.toUpperCase() !== 'N/A'
+}
+
 function getItemIssues(it, isTravel, isEditMode) {
   const issues = []
-  if (!it.date) issues.push('Date is required')
-  if (!it.particulars) issues.push('Particulars is required')
-  if (!it.purpose?.trim()) issues.push('Purpose is required')
+  if (!hasValue(it.date)) issues.push('Date is required')
+  if (!hasValue(it.particulars)) issues.push('Particulars is required')
+  if (!hasValue(it.purpose)) issues.push('Purpose is required')
 
   if (isTravel) {
-    if (!it.rt) issues.push('RT# is required')
-    if (!it.store_name) issues.push('Store is required')
-    if (!it.from) issues.push('From is required')
-    if (!it.to) issues.push('To is required')
-    if (!it.mode_of_transportation_id) issues.push('Mode of transportation is required')
+    if (!hasValue(it.rt)) issues.push('RT# is required')
+    if (!hasValue(it.store_name)) issues.push('Store is required')
+    if (!hasValue(it.from)) issues.push('From is required')
+    if (!hasValue(it.to)) issues.push('To is required')
+    if (!hasValue(it.mode_of_transportation_id)) {
+      issues.push('Mode of transportation is required')
+    }
   }
 
   if (!parseFloat(it.amount) || parseFloat(it.amount) <= 0) {
@@ -462,6 +478,42 @@ function ExpenseRow({
   )
 }
 
+function NoExpensesPanel({ checked, reason, onToggle, onReasonChange }) {
+  return (
+    <div className="mb-3 p-3 border border-slate-200 rounded-lg bg-slate-50/70">
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 cursor-pointer"
+          style={{ accentColor: '#4A0404' }}
+          checked={checked}
+          onChange={(e) => onToggle(e.target.checked)}
+        />
+        <span>
+          <span className="block text-xs font-bold text-slate-700">
+            I didn&apos;t spend any cash (return the full amount)
+          </span>
+          <span className="block text-[11px] text-slate-500">
+            Use this only if none of the cash was spent. No expense lines or receipts are needed,
+            but a reason is required.
+          </span>
+        </span>
+      </label>
+
+      {checked && (
+        <div className="mt-2">
+          <Input
+            placeholder="Reason (e.g. trip cancelled)"
+            required
+            value={reason}
+            onChange={onReasonChange}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SummaryItem({ label, value, labelClassName, valueClassName }) {
   return (
     <div className="flex items-center justify-between sm:justify-start sm:gap-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
@@ -550,6 +602,8 @@ export default function CreateLiquidationModal({
   const isTravel = liquidationType === 'TRAVEL'
 
   const [items, setItems] = useState([emptyItem()])
+  const [noExpenses, setNoExpenses] = useState(false)
+  const [noExpenseReason, setNoExpenseReason] = useState('')
   const [formError, setFormError] = useState(null)
   const [lineErrors, setLineErrors] = useState({})
   const rowRefs = useRef({})
@@ -571,6 +625,8 @@ export default function CreateLiquidationModal({
   useEffect(() => {
     if (!isOpen) {
       setItems([emptyItem()])
+      setNoExpenses(false)
+      setNoExpenseReason('')
       setFormError(null)
       setLineErrors({})
       return
@@ -578,6 +634,7 @@ export default function CreateLiquidationModal({
     if (editingLiquidation) {
       const editItems = editingLiquidation.items || []
       setItems(editItems.length ? editItems.map(savedItemToFormItem) : [emptyItem()])
+      setNoExpenses(isNoExpenseLiquidation(editingLiquidation))
       setLineErrors({})
     } else if (isTravel && ticketRows.length > 0) {
       setItems(ticketRows.map(ticketRowToItem))
@@ -588,11 +645,24 @@ export default function CreateLiquidationModal({
   const cashReceivedAmount =
     parseFloat(isEditMode ? editingLiquidation?.amount_obtained : cashReceived) || 0
 
+  // When "no expenses" is checked, nothing was spent, so the full cash
+  // received is returned.
   const totalExpended = useMemo(
-    () => items.reduce((sum, it) => sum + (parseFloat(it.amount) || 0), 0),
-    [items],
+    () => (noExpenses ? 0 : items.reduce((sum, it) => sum + (parseFloat(it.amount) || 0), 0)),
+    [items, noExpenses],
   )
   const difference = Math.round((cashReceivedAmount - totalExpended) * 100) / 100
+
+  const toggleNoExpenses = (checked) => {
+    setNoExpenses(checked)
+    setFormError(null)
+    setLineErrors({})
+  }
+
+  const handleNoExpenseReasonChange = (value) => {
+    setNoExpenseReason(value)
+    setFormError(null)
+  }
 
   const clearLineError = (index) =>
     setLineErrors((prev) => {
@@ -675,14 +745,26 @@ export default function CreateLiquidationModal({
   }
 
   const buildPayload = () => {
-    const itemsWithType = items.map((it) => ({ ...it, type: liquidationType }))
-    const allReceipts = itemsWithType.flatMap((it) => it.receipts || [])
-
     const derivedDescription = isEditMode
       ? editingLiquidation.description
       : cashRequest?.purpose ||
         cashRequest?.project ||
         `Liquidation for ${cashRequest?.reference_id || cashRequest?.id}`
+
+    // Nothing spent: no lines, no receipts, just the reason.
+    if (noExpenses) {
+      return {
+        items: [],
+        receipts: [],
+        receipt: '',
+        no_expenses: true,
+        reason: noExpenseReason.trim(),
+        ...(isEditMode ? {} : { description: derivedDescription }),
+      }
+    }
+
+    const itemsWithType = items.map((it) => ({ ...it, type: liquidationType }))
+    const allReceipts = itemsWithType.flatMap((it) => it.receipts || [])
 
     return {
       items: itemsWithType,
@@ -696,14 +778,22 @@ export default function CreateLiquidationModal({
     e.preventDefault()
     setFormError(null)
 
-    const errorsByIndex = collectLineErrors(items, isTravel, isEditMode)
-    setLineErrors(errorsByIndex)
+    if (noExpenses) {
+      if (!hasValue(noExpenseReason)) {
+        setFormError('Please enter a reason for returning the full amount.')
+        return
+      }
+      setLineErrors({})
+    } else {
+      const errorsByIndex = collectLineErrors(items, isTravel, isEditMode)
+      setLineErrors(errorsByIndex)
 
-    const errorIndexes = Object.keys(errorsByIndex)
-    if (errorIndexes.length > 0) {
-      setFormError(describeLineErrors(errorIndexes))
-      rowRefs.current[errorIndexes[0]]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      return
+      const errorIndexes = Object.keys(errorsByIndex)
+      if (errorIndexes.length > 0) {
+        setFormError(describeLineErrors(errorIndexes))
+        rowRefs.current[errorIndexes[0]]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
     }
 
     const payload = buildPayload()
@@ -748,46 +838,57 @@ export default function CreateLiquidationModal({
         )}
 
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 custom-scrollbar">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-              Expense Lines ({items.length})
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={addItem}
-              style={{ color: '#4A0404', borderColor: 'rgba(74, 4, 4, 0.2)' }}
-              className="bg-[#4A0404]/5 hover:bg-[#4A0404]/10"
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" /> Add Line
-            </Button>
-          </div>
+          <NoExpensesPanel
+            checked={noExpenses}
+            reason={noExpenseReason}
+            onToggle={toggleNoExpenses}
+            onReasonChange={handleNoExpenseReasonChange}
+          />
 
-          <Image.PreviewGroup>
-            <div className="overflow-x-auto border border-slate-200 rounded-md bg-white shadow-xs custom-scrollbar">
-              {/* Always full width; Travel adds a min-width so its 11 columns scroll on small screens */}
-              <div className={`w-full p-2 space-y-2 ${isTravel ? TRAVEL_MIN_WIDTH : ''}`}>
-                <TableHeader isTravel={isTravel} />
-
-                {items.map((item, index) => (
-                  <ExpenseRow
-                    key={index}
-                    item={item}
-                    index={index}
-                    isTravel={isTravel}
-                    issues={lineErrors[index]}
-                    rowRef={(el) => {
-                      rowRefs.current[index] = el
-                    }}
-                    canRemove={items.length > 1}
-                    options={options}
-                    searchers={searchers}
-                    actions={rowActions}
-                  />
-                ))}
+          {!noExpenses && (
+            <>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  Expense Lines ({items.length})
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addItem}
+                  style={{ color: '#4A0404', borderColor: 'rgba(74, 4, 4, 0.2)' }}
+                  className="bg-[#4A0404]/5 hover:bg-[#4A0404]/10"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Line
+                </Button>
               </div>
-            </div>
-          </Image.PreviewGroup>
+
+              <Image.PreviewGroup>
+                <div className="overflow-x-auto border border-slate-200 rounded-md bg-white shadow-xs custom-scrollbar">
+                  {/* Always full width; Travel adds a min-width so its 11 columns scroll on small screens */}
+                  <div className={`w-full p-2 space-y-2 ${isTravel ? TRAVEL_MIN_WIDTH : ''}`}>
+                    <TableHeader isTravel={isTravel} />
+
+                    {items.map((item, index) => (
+                      <ExpenseRow
+                        key={index}
+                        item={item}
+                        index={index}
+                        isTravel={isTravel}
+                        issues={lineErrors[index]}
+                        rowRef={(el) => {
+                          rowRefs.current[index] = el
+                        }}
+                        canRemove={items.length > 1}
+                        options={options}
+                        searchers={searchers}
+                        actions={rowActions}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </Image.PreviewGroup>
+            </>
+          )}
         </div>
 
         <ModalFooter

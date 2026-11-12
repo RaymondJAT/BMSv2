@@ -292,6 +292,25 @@ const validateItemReceipts = (items) => {
   return null
 }
 
+/**
+ * "No expenses" liquidation: the Requester spent none of the cash, so the
+ * full amount comes back to the fund. It has NO lines and NO receipts —
+ * validateItems/validateItemReceipts are skipped entirely — but a reason
+ * is mandatory so the approvers know why nothing was spent. There is no
+ * separate flag column: a liquidation with zero items and l_amount_expended
+ * = 0 IS a no-expense liquidation. The settlement math in verifyLiquidation
+ * already handles totalLiquidated = 0 (cashToReturn = the full amount).
+ */
+const validateNoExpenseReason = (reason, items) => {
+  if (!reason || !String(reason).trim()) {
+    return 'A reason is required when no cash was spent.'
+  }
+  if (Array.isArray(items) && items.length > 0) {
+    return 'A no-expense liquidation cannot include expense lines.'
+  }
+  return null
+}
+
 const sumItemAmounts = (items) => items.reduce((sum, item) => sum + parseNum(item.amount), 0)
 
 /**
@@ -509,10 +528,17 @@ const deleteDisbursement = async (cdId) => {
  *              l_reimburse_return sign convention: positive = Cash to
  *              Return (Requester owes the company), negative =
  *              Reimbursement (company owes the Requester).
+ *
+ *              NO EXPENSES: when `no_expenses` is true the Requester spent
+ *              none of the cash. `items` must then be empty (or omitted),
+ *              no receipts are needed, and `reason` is required. The
+ *              liquidation is stored with zero items and
+ *              l_amount_expended = 0, so l_reimburse_return equals the
+ *              full cash obtained (all of it is Cash to Return).
  */
 const createLiquidation = async (req, res) => {
   // #swagger.tags = ['Liquidation']
-  // #swagger.description = 'Requester submits a Liquidation for a COMPLETED Cash Request. Totals are computed server-side from items. Every line needs at least one receipt image. Travel lines additionally require rt, store_name, from, to and mode_of_transportation_id.'
+  // #swagger.description = 'Requester submits a Liquidation for a COMPLETED Cash Request. Totals are computed server-side from items. Every line needs at least one receipt image. Travel lines additionally require rt, store_name, from, to and mode_of_transportation_id. Send no_expenses: true (with a reason and no items) when none of the cash was spent — the full amount is then returned.'
   // #swagger.autoBody = false
   // #swagger.consumes = ['application/json']
   /*
@@ -523,6 +549,8 @@ const createLiquidation = async (req, res) => {
         cash_request_id: 1,
         description: 'string',
         receipt: 'base64 string (activity-level receipt)',
+        no_expenses: false,
+        reason: 'string (required only when no_expenses is true)',
         items: [
           {
             date: '2026-10-30',
@@ -543,7 +571,8 @@ const createLiquidation = async (req, res) => {
   */
 
   const userId = req.userId || req.user?.id || 1
-  const { cash_request_id, description, receipt, items } = req.body
+  const { cash_request_id, description, receipt, items, no_expenses, reason } = req.body
+  const noExpenses = no_expenses === true
 
   if (!cash_request_id || !description) {
     return res
@@ -551,11 +580,18 @@ const createLiquidation = async (req, res) => {
       .json({ message: 'Missing required fields: cash_request_id, description' })
   }
 
-  const itemError = validateItems(items)
-  if (itemError) return res.status(400).json({ message: itemError })
+  if (noExpenses) {
+    const noExpenseError = validateNoExpenseReason(reason, items)
+    if (noExpenseError) return res.status(400).json({ message: noExpenseError })
+  } else {
+    const itemError = validateItems(items)
+    if (itemError) return res.status(400).json({ message: itemError })
 
-  const receiptError = validateItemReceipts(items)
-  if (receiptError) return res.status(400).json({ message: receiptError })
+    const receiptError = validateItemReceipts(items)
+    if (receiptError) return res.status(400).json({ message: receiptError })
+  }
+
+  const lineItems = noExpenses ? [] : items
 
   try {
     const cr = await getCashRequestById(cash_request_id)
@@ -582,7 +618,7 @@ const createLiquidation = async (req, res) => {
     }
 
     const cashObtained = parseNum(cd[Cash.Disbursement.cols.amount_issued])
-    const totalExpended = sumItemAmounts(items)
+    const totalExpended = sumItemAmounts(lineItems)
     const reimburseReturn = Math.round((cashObtained - totalExpended) * 100) / 100
 
     // l_id is autoincrement and the items/activity below need it, so this
@@ -602,7 +638,7 @@ const createLiquidation = async (req, res) => {
     const newLiquidationId = insertResult.insertId
 
     try {
-      const itemQueries = items.map((item) =>
+      const itemQueries = lineItems.map((item) =>
         toTxQuery(
           SQL.model(Liquidation.Item).insert(buildItemInsertData(newLiquidationId, item)).build(),
         ),
@@ -611,9 +647,10 @@ const createLiquidation = async (req, res) => {
         .insert({
           [Liquidation.Activity.cols.liquidation_id]: newLiquidationId,
           [Liquidation.Activity.cols.action]: 'REQUESTED',
-          [Liquidation.Activity.cols.remarks]:
-            `Liquidation ${toReferenceId(newLiquidationId)} submitted for ₱${totalExpended.toFixed(2)}.`,
-          [Liquidation.Activity.cols.receipt]: receipt,
+          [Liquidation.Activity.cols.remarks]: noExpenses
+            ? `Liquidation ${toReferenceId(newLiquidationId)} submitted with no expenses — full ₱${cashObtained.toFixed(2)} to be returned. Reason: ${String(reason).trim()}`
+            : `Liquidation ${toReferenceId(newLiquidationId)} submitted for ₱${totalExpended.toFixed(2)}.`,
+          [Liquidation.Activity.cols.receipt]: receipt || '',
           [Liquidation.Activity.cols.created_by]: userId,
         })
         .build()
@@ -665,10 +702,15 @@ const createLiquidation = async (req, res) => {
  *              such a liquidation will hit verifyLiquidation's
  *              already-LIQUIDATED guard and be rejected. Known workflow
  *              gap flagged for a product decision, not silently handled.
+ *
+ *              NO EXPENSES: same rules as createLiquidation — send
+ *              no_expenses: true with a reason and no items. Any existing
+ *              items are replaced by nothing, and the totals reset to
+ *              expended = 0 / full amount to return.
  */
 const updateLiquidation = async (req, res) => {
   // #swagger.tags = ['Liquidation']
-  // #swagger.description = 'Requester edits their own PENDING, REJECTED or INCOMPLETE liquidation. Always resets status to PENDING and re-enters the Team Leader queue. Editing an INCOMPLETE liquidation does not reverse the settlement already posted at verification.'
+  // #swagger.description = 'Requester edits their own PENDING, REJECTED or INCOMPLETE liquidation. Always resets status to PENDING and re-enters the Team Leader queue. Editing an INCOMPLETE liquidation does not reverse the settlement already posted at verification. Send no_expenses: true (with a reason and no items) when none of the cash was spent.'
   // #swagger.autoBody = false
   // #swagger.consumes = ['application/json']
   /*
@@ -679,6 +721,8 @@ const updateLiquidation = async (req, res) => {
         id: 1,
         description: 'string',
         receipt: 'base64 string (optional)',
+        no_expenses: false,
+        reason: 'string (required only when no_expenses is true)',
         items: [
           {
             date: '2026-10-30',
@@ -694,9 +738,15 @@ const updateLiquidation = async (req, res) => {
   */
 
   const userId = req.userId || req.user?.id || 1
-  const { id, description, receipt, items } = req.body
+  const { id, description, receipt, items, no_expenses, reason } = req.body
+  const noExpenses = no_expenses === true
+  const lineItems = noExpenses ? [] : items
 
-  const itemError = items !== undefined ? validateItems(items) : null
+  const itemError = noExpenses
+    ? validateNoExpenseReason(reason, items)
+    : items !== undefined
+      ? validateItems(items)
+      : null
   if (itemError) return res.status(400).json({ message: itemError })
 
   const lq = await loadLiquidationForAction(res, id, {
@@ -712,8 +762,8 @@ const updateLiquidation = async (req, res) => {
     if (description !== undefined)
       updateData[Liquidation.Liquidation.cols.description] = description
 
-    if (items !== undefined) {
-      const totalExpended = sumItemAmounts(items)
+    if (lineItems !== undefined) {
+      const totalExpended = sumItemAmounts(lineItems)
       updateData[Liquidation.Liquidation.cols.amount_expended] = totalExpended
       const cashObtained = parseNum(lq[Liquidation.Liquidation.cols.amount_obtained])
       updateData[Liquidation.Liquidation.cols.reimburse_return] =
@@ -729,7 +779,7 @@ const updateLiquidation = async (req, res) => {
       ),
     ]
 
-    if (items !== undefined) {
+    if (lineItems !== undefined) {
       queries.push(
         toTxQuery(
           SQL.model(Liquidation.Item)
@@ -738,7 +788,7 @@ const updateLiquidation = async (req, res) => {
             .build(),
         ),
       )
-      items.forEach((item) => {
+      lineItems.forEach((item) => {
         queries.push(
           toTxQuery(SQL.model(Liquidation.Item).insert(buildItemInsertData(id, item)).build()),
         )
@@ -752,13 +802,14 @@ const updateLiquidation = async (req, res) => {
             [Liquidation.Activity.cols.liquidation_id]: id,
             [Liquidation.Activity.cols.action]: 'REQUESTED',
             [Liquidation.Activity.cols.remarks]:
-              currentStatus === 'PENDING'
+              (currentStatus === 'PENDING'
                 ? 'Edited while pending Team Leader approval.'
-                : `Edited and resubmitted after being returned as ${currentStatus} — back in the Team Leader queue.`,
+                : `Edited and resubmitted after being returned as ${currentStatus} — back in the Team Leader queue.`) +
+              (noExpenses ? ` No expenses — reason: ${String(reason).trim()}` : ''),
             // la_receipt is NOT NULL — '' satisfies the constraint when no
             // new receipt is attached on this edit.
             [Liquidation.Activity.cols.receipt]:
-              receipt || (items || []).flatMap((it) => it.receipts || [])[0] || '',
+              receipt || (lineItems || []).flatMap((it) => it.receipts || [])[0] || '',
             [Liquidation.Activity.cols.created_by]: userId,
           })
           .build(),
