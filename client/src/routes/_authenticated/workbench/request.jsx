@@ -32,19 +32,10 @@ export const Route = createFileRoute('/_authenticated/workbench/request')({
 })
 
 /* ------------------------------------------------------------------ */
-/* Constants                                                           */
+/* Constants                                                          */
 /* ------------------------------------------------------------------ */
 
 const CREATE_ROLES = ['ADMINISTRATOR', 'REQUESTER']
-const STATUS_FILTER_ROLES = ['ADMINISTRATOR', 'REQUESTER', 'DEVELOPER']
-
-const STATUS_FILTER_OPTIONS = [
-  { value: 'ALL', label: 'All Statuses' },
-  { value: 'PENDING', label: 'Pending Team Leader' },
-  { value: 'APPROVED', label: 'Pending Fund Custodian' },
-  { value: 'COMPLETED', label: 'Completed' },
-  { value: 'REJECTED', label: 'Rejected' },
-]
 
 const MESSAGES = {
   ticketChecking: 'Checking your ticket status with Slink — please try again in a moment.',
@@ -63,39 +54,28 @@ const INITIAL_TOAST = { isOpen: false, message: '', variant: 'warning' }
 const CLOSED_MODAL = { type: null, request: null }
 
 /* ------------------------------------------------------------------ */
-/* Pure helpers                                                        */
+/* Pure helpers                                                       */
 /* ------------------------------------------------------------------ */
 
-const filterRequests = (requests, { searchTerm, statusFilter, getEmployeeName }) => {
+const filterRequests = (requests, { searchTerm, getEmployeeName }) => {
   const query = searchTerm.toLowerCase()
 
   return requests.filter((req) => {
     const requesterName = getEmployeeName(req.employee_id).toLowerCase()
-    const matchesSearch =
+    return (
       (req.reference_id || '').toLowerCase().includes(query) ||
       (req.project || '').toLowerCase().includes(query) ||
       (req.purpose || '').toLowerCase().includes(query) ||
       requesterName.includes(query)
-    const matchesStatus =
-      statusFilter === 'ALL' || String(req.status || '').toUpperCase() === statusFilter
-
-    return matchesSearch && matchesStatus
+    )
   })
 }
-
-const buildStatusFilter = (value, onChange) => ({
-  key: 'status',
-  label: 'Status',
-  value,
-  onChange,
-  options: STATUS_FILTER_OPTIONS,
-})
 
 const formatCurrency = (val) =>
   new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val || 0)
 
 /* ------------------------------------------------------------------ */
-/* Small hooks                                                         */
+/* Small hooks                                                        */
 /* ------------------------------------------------------------------ */
 
 function useToast() {
@@ -112,11 +92,6 @@ function useToast() {
   return { toast, showToast, closeToast }
 }
 
-/**
- * Gate in front of the liquidation modal: asks Slink first and only opens
- * the modal when allowed. Holds the ticket rows that prefill the form
- * (travel requests only).
- */
 function useLiquidationGate({
   checkLiquidation,
   isChecking,
@@ -155,7 +130,7 @@ function useLiquidationGate({
 }
 
 /* ------------------------------------------------------------------ */
-/* Presentational pieces                                               */
+/* Presentational pieces                                              */
 /* ------------------------------------------------------------------ */
 
 function PageHeader({ canCreate, onCreate }) {
@@ -210,7 +185,7 @@ function TableLoading() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Page                                                                */
+/* Page                                                               */
 /* ------------------------------------------------------------------ */
 
 function CashRequestPage() {
@@ -219,18 +194,15 @@ function CashRequestPage() {
   const userRole = currentUser?.access_name || null
   const positionName = currentUser?.position_name || currentUser?.position || ''
 
-  // Local id (master_employee.me_id): used for our own backend.
   const currentEmployeeId = currentUser?.employee_id || currentUser?.id || null
-  // HRMIS code: Slink identifies agents by this, not the local id.
   const slinkEmployeeId = currentUser?.employee_code || null
 
   const canCreate = CREATE_ROLES.includes(userRole)
-  const showStatusFilter = STATUS_FILTER_ROLES.includes(userRole)
 
   /* ── UI state ─────────────────────────────────────────────────── */
   const [dateRange, setDateRange] = useState(getTodayRange)
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [activeTab, setActiveTab] = useState('active_pipeline') // 'active_pipeline' | 'completed'
   const [selectedIds, setSelectedIds] = useState([])
   const [modal, setModal] = useState(CLOSED_MODAL)
   const { toast, showToast, closeToast } = useToast()
@@ -274,8 +246,6 @@ function CashRequestPage() {
   const eligibility = useCashRequestEligibility(currentEmployeeId, requests)
 
   /* ── Slink: request type ──────────────────────────────────────── */
-  // Open ticket -> TRAVEL EXPENSES, otherwise BUDGET (not chosen by the user).
-  // Only creators need this, so other roles never call Slink for it.
   const ticketRequired = isTicketRequiredPosition(positionName)
   const {
     ticketStatus,
@@ -294,8 +264,6 @@ function CashRequestPage() {
     positionName,
   })
 
-  // Refetch after a liquidation is created so the row's liquidation_id /
-  // liquidation_status (and the Liquidate button) update.
   const {
     liquidateTarget,
     isLiquidating,
@@ -317,8 +285,6 @@ function CashRequestPage() {
 
   /* ── Handlers: create / edit ──────────────────────────────────── */
   const handleCreateClick = useCallback(() => {
-    // Slink couldn't be reached (or is still answering): don't guess the
-    // request type. Retry and let the user try again.
     if (ticketStatus === TICKET_STATUS.UNKNOWN) {
       showToast(
         ticketError ? MESSAGES.ticketFailed(ticketError) : MESSAGES.ticketChecking,
@@ -334,9 +300,6 @@ function CashRequestPage() {
     openModal('create')
   }, [ticketStatus, ticketError, eligibility, openModal, showToast, refreshTicketStatus])
 
-  // Inject the Slink-derived request_type into the payload. The backend still
-  // forces Rotation/Pick-up to TRAVEL EXPENSES and falls back to its purpose
-  // regex if no type is sent.
   const handleCreateRequest = useCallback(
     async (payload) => {
       const result = await createRequest({ ...payload, request_type: requestType })
@@ -346,7 +309,6 @@ function CashRequestPage() {
     [createRequest, requestType, refreshTicketStatus],
   )
 
-  // When Slink is unreachable, omit request_type so the backend keeps the stored one.
   const handleUpdateRequest = useCallback(
     (payload) =>
       editRequest(
@@ -358,10 +320,27 @@ function CashRequestPage() {
     [editRequest, ticketStatus, requestType],
   )
 
-  /* ── Derived data ─────────────────────────────────────────────── */
+  /* ── Derived data & Folder Tabs ───────────────────────────────── */
   const filteredRequests = useMemo(
-    () => filterRequests(requests, { searchTerm, statusFilter, getEmployeeName }),
-    [requests, searchTerm, statusFilter, getEmployeeName],
+    () => filterRequests(requests, { searchTerm, getEmployeeName }),
+    [requests, searchTerm, getEmployeeName],
+  )
+
+  const tabsConfig = useMemo(
+    () => [
+      {
+        key: 'active_pipeline',
+        label: 'Pending, Approved & Rejected',
+        filter: (row) =>
+          ['PENDING', 'APPROVED', 'REJECTED'].includes(String(row.status || '').toUpperCase()),
+      },
+      {
+        key: 'completed',
+        label: 'Completed',
+        filter: (row) => String(row.status || '').toUpperCase() === 'COMPLETED',
+      },
+    ],
+    [],
   )
 
   const columns = useMemo(
@@ -394,7 +373,6 @@ function CashRequestPage() {
   const metricCards = useMemo(() => buildCashRequestMetricCards(metrics), [metrics])
 
   /* ── Wallet ───────────────────────────────────────────────────── */
-  // Refetch when any request's status/liquidation state changes.
   const walletRefreshKey = useMemo(
     () =>
       requests
@@ -418,12 +396,9 @@ function CashRequestPage() {
     [canCreate, wallet.balance],
   )
 
-  const toolbarFilters = showStatusFilter ? [buildStatusFilter(statusFilter, setStatusFilter)] : []
-
-  const emptyMessage =
-    searchTerm || statusFilter !== 'ALL'
-      ? 'No cash requests match your filter criteria.'
-      : 'No cash requests found.'
+  const emptyMessage = searchTerm
+    ? 'No cash requests match your search criteria.'
+    : 'No cash requests found in this folder.'
 
   /* ── Render ───────────────────────────────────────────────────── */
   return (
@@ -445,7 +420,6 @@ function CashRequestPage() {
         searchPlaceholder="Search Reference, Project, Purpose, Requester..."
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
-        filters={toolbarFilters}
       />
 
       <div className="flex-1 min-h-0 w-full overflow-hidden">
@@ -455,6 +429,9 @@ function CashRequestPage() {
           <DataTable
             columns={columns}
             data={filteredRequests}
+            tabs={tabsConfig}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
             keyExtractor={(row) => row.id}
             selectable
             selectedRows={selectedIds}
@@ -465,7 +442,7 @@ function CashRequestPage() {
             footer={
               <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
                 <span>
-                  Showing {filteredRequests.length} entries
+                  Showing entries
                   {selectedIds.length > 0 && ` (${selectedIds.length} selected)`}
                 </span>
               </div>

@@ -191,8 +191,8 @@ function DisbursementsPage() {
             onChange: setStatusFilter,
             options: [
               { value: 'ALL', label: 'All Statuses' },
-              { value: 'UNLIQUIDATED', label: 'Unliquidated' },
-              { value: 'LIQUIDATED', label: 'Liquidated' },
+              { value: 'UNLIQUIDATED', label: 'UNLIQUIDATED' },
+              { value: 'LIQUIDATED', label: 'LIQUIDATED' },
             ],
           },
         ]}

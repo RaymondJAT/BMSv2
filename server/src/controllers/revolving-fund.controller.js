@@ -322,7 +322,7 @@ const upsertRevolvingFund = async (req, res) => {
         return res.status(400).json({ message: 'Budget id is required' })
       }
 
-      const { todayStr, yesterdayStr } = getDateBounds()
+      const { todayStr } = getDateBounds()
 
       const budgetRow = await getBudgetById(budget_id)
       if (!budgetRow) {
@@ -332,24 +332,31 @@ const upsertRevolvingFund = async (req, res) => {
       const departmentId = budgetRow[Budget.Budget.cols.department_id]
       const budgetType = budgetRow[Budget.Budget.cols.type]
 
-      const unclosedYesterdayQuery = await Query(
-        `SELECT 
-          rf_start_date AS start_date, 
-          CONCAT(md_description, '-', b_type) AS name, 
-          rf_status 
-        FROM revolving_fund 
-        INNER JOIN budget ON rf_budget_id = b_id 
-        INNER JOIN master_department ON b_department_id = md_id 
-        WHERE DATE(rf_start_date) = ? 
-          AND rf_budget_id = ? 
-          AND rf_status IN ('ON REVIEW', 'OPEN')`,
-        [yesterdayStr, budget_id],
+      const unclosedFunds = await Query(
+        `SELECT
+    rf_start_date AS start_date,
+    CONCAT(md_description, '-', b_type) AS name,
+    rf_status
+  FROM revolving_fund
+  INNER JOIN budget ON rf_budget_id = b_id
+  INNER JOIN master_department ON b_department_id = md_id
+  WHERE rf_budget_id = ?
+    AND rf_status IN ('ON REVIEW', 'OPEN')`,
+        [budget_id],
       )
 
-      if (unclosedYesterdayQuery.length > 0) {
-        const existingName = unclosedYesterdayQuery.map((rf) => rf.name).join(', ')
+      if (unclosedFunds.length > 0) {
+        const details = unclosedFunds
+          .map((rf) => {
+            const date =
+              rf.start_date instanceof Date
+                ? formatDate(rf.start_date)
+                : String(rf.start_date).slice(0, 10)
+            return `${rf.name} (started ${date})`
+          })
+          .join(', ')
         return res.status(400).json({
-          message: `Revolving fund with type(s) ${existingName} is still not closed from Yesterday`,
+          message: `Cannot create a new revolving fund. Please close the existing one first: ${details}.`,
         })
       }
 

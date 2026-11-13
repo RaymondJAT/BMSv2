@@ -60,8 +60,6 @@ function SummaryField({ label, value, valueClassName = 'font-semibold text-slate
   )
 }
 
-// One workflow action button — Edit / Approve / Verify / Finance all
-// share this exact shape (icon + label + color), built on top of the reusable Button.
 function ActionButton({ icon: Icon, label, colorClassName, onClick }) {
   return (
     <Button variant="outline" onClick={onClick} className={`font-semibold ${colorClassName}`}>
@@ -85,13 +83,9 @@ function LiquidationDetailPage() {
     liquidation?.items,
   )
 
-  // Edit modal's own lookups — same source the list page used to pass in.
   const { districts, modes, searchStores, searchModes } = useLiquidationMasterData()
   const { particulars, searchParticulars, getFundLabel } = useLiquidationLookups()
 
-  // Verify modal's fund picker needs the disbursement this liquidation is
-  // settling (for its ORIGINAL fund + that fund's status) and the pool of
-  // funds eligible to receive a Return/Reimbursement.
   const { disbursements = [] } = useCashDisbursements()
   const { funds = [] } = useRevolvingFunds()
 
@@ -105,7 +99,7 @@ function LiquidationDetailPage() {
     markIncomplete,
   } = useLiquidations({ role: userRole })
 
-  const [activeModal, setActiveModal] = useState(null) // 'edit' | 'approve' | 'verify' | 'finance' | null
+  const [activeModal, setActiveModal] = useState(null)
   const closeActiveModal = useCallback(() => setActiveModal(null), [])
 
   const permissions = useMemo(
@@ -132,8 +126,6 @@ function LiquidationDetailPage() {
     () => funds.find((f) => String(f.id) === String(originalFundId)),
     [funds, originalFundId],
   )
-  // CLOSED funds can't receive a Return/Reimbursement (mirrors the backend's
-  // NON_ISSUABLE_RF_STATUSES/checkReimbursementEligibility guards).
   const eligibleFundsForVerify = useMemo(() => funds.filter((f) => f.status !== 'CLOSED'), [funds])
 
   const itemColumns = useMemo(
@@ -141,11 +133,6 @@ function LiquidationDetailPage() {
     [getParticularsName, getModeName, getStoreLabel],
   )
 
-  // Every action refreshes this page's own detail/activity afterward so
-  // the status badge, action bar, and rejection notice update in place
-  // without a manual reload. The modals themselves are responsible for
-  // closing on success (same pattern CreateLiquidationModal already
-  // uses elsewhere: `if (result?.success) onClose()`).
   const withRefetch = useCallback(
     (mutation) =>
       async (...args) => {
@@ -183,23 +170,27 @@ function LiquidationDetailPage() {
   }
 
   const items = liquidation.items || []
-  const difference = parseFloat(liquidation.reimburse_return || 0)
+  const amountObtained = parseFloat(liquidation.amount_obtained || 0)
+  const amountExpended = parseFloat(liquidation.amount_expended || 0)
+
+  const rawDifference = amountObtained - amountExpended
+  const difference = Math.abs(rawDifference)
+
+  const varianceType =
+    rawDifference > 0 ? 'Return' : rawDifference < 0 ? 'Reimbursement' : 'Fully Liquidated'
+
   const differenceColor =
-    difference < 0 ? 'text-orange-600' : difference > 0 ? 'text-blue-600' : 'text-emerald-600'
+    rawDifference < 0 ? 'text-orange-600' : rawDifference > 0 ? 'text-blue-600' : 'text-emerald-600'
 
   return (
     <div className="w-full h-full flex-1 flex flex-col min-h-0 space-y-3 overflow-hidden">
-      {/* Top Bar Navigation & Actions */}
+      {/* Top Bar Navigation & Actions (Fixed Header) */}
       <div className="flex items-center justify-between shrink-0 print:hidden flex-wrap gap-2">
         <Button variant="outline" onClick={() => navigate({ to: '/workbench/liquidation' })}>
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
           Back
         </Button>
 
-        {/* Workflow actions — only the ones the current role/status allow
-            are rendered. Every decision here requires reviewing the line
-            items and receipts below first, which is exactly why these
-            moved off the list page onto this one. */}
         <div className="flex items-center gap-2">
           {permissions.canEdit && (
             <ActionButton
@@ -244,68 +235,66 @@ function LiquidationDetailPage() {
       {rejectionNotes.length > 0 && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl shrink-0">
           <div className="font-bold mb-1">Latest Remarks</div>
-          {rejectionNotes[rejectionNotes.length - 1].remarks}
+          {rejectionNotes[rejectionNotes.length - 1]?.remarks}
         </div>
       )}
 
-      {/* Main Content Scrollable Area */}
-      <div className="flex-1 min-h-0 w-full overflow-y-auto space-y-3 pr-1">
-        {/* Header Summary Metadata Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs bg-white p-4 border border-slate-200 rounded-xl shadow-2xs">
-          <SummaryField
-            label="Employee"
-            value={
-              getEmployeeName
-                ? getEmployeeName(liquidation.employee_id)
-                : liquidation.employee_name || `#${liquidation.employee_id}`
-            }
-          />
-          <SummaryField
-            label="Department"
-            value={
-              getDepartmentName
-                ? getDepartmentName(liquidation.department_id)
-                : liquidation.department || '—'
-            }
-          />
-          <SummaryField
-            label="Date of Liquidation"
-            value={formatDate(liquidation.date_of_liquidation || liquidation.createdAt)}
-          />
-          <SummaryField label="Reference ID" value={liquidation.reference_id || '—'} />
-          <SummaryField
-            label="Team Leader"
-            value={resolveTeamLeader(liquidation, getEmployeeName)}
-          />
-          <SummaryField
-            label="Amount Obtained"
-            value={formatCurrency(liquidation.amount_obtained)}
-            valueClassName="font-bold text-slate-900"
-          />
-          <SummaryField
-            label="Amount Expended"
-            value={formatCurrency(liquidation.amount_expended)}
-            valueClassName="font-bold text-slate-900"
-          />
-          <SummaryField
-            label="Return / Reimbursement"
-            value={formatCurrency(Math.abs(difference))}
-            valueClassName={`font-bold ${differenceColor}`}
-          />
-        </div>
+      {/* Header Summary Metadata Grid (Fixed Header - Stays visible while scrolling table) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs bg-white p-4 border border-slate-200 rounded-xl shadow-2xs shrink-0">
+        <SummaryField
+          label="Employee"
+          value={
+            getEmployeeName
+              ? getEmployeeName(liquidation.employee_id)
+              : liquidation.employee_name || `#${liquidation.employee_id}`
+          }
+        />
+        <SummaryField
+          label="Department"
+          value={
+            getDepartmentName
+              ? getDepartmentName(liquidation.department_id)
+              : liquidation.department || '—'
+          }
+        />
+        <SummaryField
+          label="Date of Liquidation"
+          value={formatDate(liquidation.date_of_liquidation || liquidation.createdAt)}
+        />
+        <SummaryField label="Reference ID" value={liquidation.reference_id || '—'} />
+        <SummaryField label="Team Leader" value={resolveTeamLeader(liquidation, getEmployeeName)} />
+        <SummaryField
+          label="Amount Obtained"
+          value={formatCurrency(amountObtained)}
+          valueClassName="font-bold text-slate-900"
+        />
+        <SummaryField
+          label="Amount Expended"
+          value={formatCurrency(amountExpended)}
+          valueClassName="font-bold text-slate-900"
+        />
+        <SummaryField
+          label={varianceType}
+          value={formatCurrency(difference)}
+          valueClassName={`font-bold ${differenceColor}`}
+        />
+      </div>
 
-        {/* Liquidation Items Table */}
-        <div className="flex-1 min-h-0 w-full overflow-hidden">
-          <Image.PreviewGroup>
-            <DataTable
-              columns={itemColumns}
-              data={items}
-              keyExtractor={(row) => row.id}
-              emptyMessage="No liquidation items found."
-              containerClassName="flex flex-col min-h-0"
-            />
-          </Image.PreviewGroup>
-        </div>
+      {/* Liquidation Items Table Container (Only this section scrolls with custom scrollbar) */}
+      <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col">
+        <Image.PreviewGroup>
+          <DataTable
+            columns={itemColumns}
+            data={items}
+            keyExtractor={(row) => row.id}
+            emptyMessage="No liquidation items found."
+            containerClassName="flex flex-col h-full min-h-0"
+            maxHeight="h-full"
+            scrollbarClassName="custom-scrollbar"
+            initialDisplayCount={items.length || 11}
+            newestFirst={false}
+          />
+        </Image.PreviewGroup>
       </div>
 
       {/* Workflow Modals */}

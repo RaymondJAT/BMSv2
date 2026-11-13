@@ -62,6 +62,10 @@ const DataTable = ({
   selectable = false,
   selectedRows = [],
   onSelectionChange,
+  // Folder / Tab Filter Props
+  tabs = [],
+  activeTab,
+  onTabChange,
 }) => {
   const [sortColumn, setSortColumn] = useState(null)
   const [sortDirection, setSortDirection] = useState('asc')
@@ -69,10 +73,18 @@ const DataTable = ({
 
   const scrollContainerRef = useRef(null)
 
-  // Reset pagination limit when sorting or underlying data changes
+  // Reset pagination limit when sorting, tab switching, or underlying data changes
   useEffect(() => {
     setVisibleCount(initialDisplayCount)
-  }, [data, sortColumn, sortDirection, initialDisplayCount])
+  }, [data, sortColumn, sortDirection, activeTab, initialDisplayCount])
+
+  // Filter dataset by active tab folder if tabs are provided
+  const tabFilteredData = useMemo(() => {
+    if (!tabs.length || activeTab === undefined) return data
+    const currentTab = tabs.find((t) => t.key === activeTab)
+    if (!currentTab || !currentTab.filter) return data
+    return data.filter(currentTab.filter)
+  }, [data, tabs, activeTab])
 
   const handleSort = (key) => {
     if (!key) return
@@ -90,10 +102,10 @@ const DataTable = ({
 
   const sortedData = useMemo(() => {
     if (!sortColumn) {
-      return newestFirst ? [...data].reverse() : data
+      return newestFirst ? [...tabFilteredData].reverse() : tabFilteredData
     }
 
-    return [...data].sort((a, b) => {
+    return [...tabFilteredData].sort((a, b) => {
       const aVal = a[sortColumn]
       const bVal = b[sortColumn]
 
@@ -107,7 +119,7 @@ const DataTable = ({
 
       return sortDirection === 'asc' ? (aVal > bVal ? 1 : -1) : aVal < bVal ? 1 : -1
     })
-  }, [data, sortColumn, sortDirection, newestFirst])
+  }, [tabFilteredData, sortColumn, sortDirection, newestFirst])
 
   // Slice sorted dataset to only render up to visibleCount
   const displayedData = useMemo(() => {
@@ -120,7 +132,6 @@ const DataTable = ({
   const handleScroll = useCallback(
     (e) => {
       const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
-      // Threshold: Load more when within 20px of the bottom
       if (scrollHeight - scrollTop <= clientHeight + 20) {
         if (hasMore) {
           setVisibleCount((prev) => Math.min(prev + pageSize, sortedData.length))
@@ -132,16 +143,18 @@ const DataTable = ({
 
   // Selection Logic
   const isAllSelected =
-    data.length > 0 && data.every((row, idx) => selectedRows.includes(keyExtractor(row, idx)))
+    tabFilteredData.length > 0 &&
+    tabFilteredData.every((row, idx) => selectedRows.includes(keyExtractor(row, idx)))
 
   const isSomeSelected =
-    data.some((row, idx) => selectedRows.includes(keyExtractor(row, idx))) && !isAllSelected
+    tabFilteredData.some((row, idx) => selectedRows.includes(keyExtractor(row, idx))) &&
+    !isAllSelected
 
   const handleSelectAll = (e) => {
     if (!onSelectionChange) return
     if (e.target.checked) {
-      const allKeys = data.map((row, idx) => keyExtractor(row, idx))
-      onSelectionChange(allKeys, data)
+      const allKeys = tabFilteredData.map((row, idx) => keyExtractor(row, idx))
+      onSelectionChange(allKeys, tabFilteredData)
     } else {
       onSelectionChange([], [])
     }
@@ -197,7 +210,7 @@ const DataTable = ({
     }
 
     return [checkboxColumn, ...columns]
-  }, [columns, selectable, isAllSelected, isSomeSelected, selectedRows, data])
+  }, [columns, selectable, isAllSelected, isSomeSelected, selectedRows, tabFilteredData])
 
   return (
     <div
@@ -205,13 +218,13 @@ const DataTable = ({
         maxHeight || ''
       } ${containerClassName}`}
     >
+      {/* Table Scroll Area */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
         className={`overflow-auto min-w-full flex-1 min-h-0 ${scrollbarClassName}`}
       >
         <table className="w-full text-left border-collapse">
-          {/* Header background uses the StatCard warm cream color (#F9F6F0) */}
           <thead className="sticky top-0 z-10 bg-[#F9F6F0] shadow-xs">
             <tr className="border-b border-slate-200/80 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
               {displayColumns.map((col, index) => {
@@ -281,7 +294,7 @@ const DataTable = ({
                     <tr
                       key={rowKey}
                       onClick={() => onRowClick && onRowClick(row)}
-                      className={`transition-colors hover:bg-[#F9F6F0] ${
+                      className={`transition-colors hover:bg-[#ffeeee] ${
                         isSelected ? 'bg-rose-50/50' : ''
                       } ${onRowClick ? 'cursor-pointer' : ''}`}
                     >
@@ -303,7 +316,6 @@ const DataTable = ({
                   )
                 })}
 
-                {/* Loading indicator row while fetching next scroll batch */}
                 {hasMore && (
                   <tr>
                     <td colSpan={displayColumns.length || 1} className="py-3 text-center bg-white">
@@ -320,8 +332,51 @@ const DataTable = ({
         </table>
       </div>
 
-      {footer && (
-        <div className="border-t border-slate-200/80 bg-[#F1F3F5] py-2 px-3 shrink-0">{footer}</div>
+      {/* Excel-style Footer Bar combining tabs and entry counts (Scrollbar removed with overflow-hidden & flex-wrap) */}
+      {(tabs.length > 0 || footer) && (
+        <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-200/80 bg-[#F1F3F5] px-3 py-1.5 shrink-0 gap-2 overflow-hidden">
+          {/* Sheet / Folder Tabs */}
+          {tabs && tabs.length > 0 ? (
+            <div className="flex items-center gap-1 overflow-hidden flex-wrap w-full sm:w-auto">
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.key
+                const count =
+                  tab.count !== undefined
+                    ? tab.count
+                    : data.filter(tab.filter || (() => true)).length
+
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => onTabChange && onTabChange(tab.key)}
+                    className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-t border-t border-x transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-white text-slate-900 border-slate-300 shadow-2xs font-bold -mb-1 pb-1.5'
+                        : 'bg-slate-200/80 text-slate-500 border-transparent hover:bg-slate-200 hover:text-slate-700'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                        isActive
+                          ? 'bg-rose-50 text-[#E31837] border border-red-200'
+                          : 'bg-slate-300/80 text-slate-600'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <div />
+          )}
+
+          {/* Custom Footer or Entry Stats */}
+          <div className="text-[11px] text-slate-500 font-medium shrink-0">{footer}</div>
+        </div>
       )}
     </div>
   )
