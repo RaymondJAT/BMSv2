@@ -15,6 +15,9 @@ import {
   XCircle,
   Loader2,
   AlertCircle,
+  RefreshCw,
+  Eye,
+  X,
 } from 'lucide-react'
 import { createDistrictsColumns } from '../../../table-columns/disctrictColumns'
 import { useDistricts } from '../../../hooks/useDistricts'
@@ -29,6 +32,32 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'INACTIVE', label: 'Inactive' },
 ]
 
+const FIELD_LABELS = {
+  store_name: 'name',
+  region: 'region',
+  city_province: 'city/province',
+  status: 'status',
+}
+
+const showValue = (value) => (value === '' || value == null ? '—' : value)
+
+// Counts shown in the sync result banner. Labels change for a preview.
+const getSyncResultFields = (result) => {
+  const isPreview = Boolean(result.dry_run)
+  return [
+    ['total_from_slink', 'From Slink'],
+    ['pages', 'Pages'],
+    ['received', 'Received'],
+    ['matched', 'Matched ours'],
+    ['updated', isPreview ? 'To update' : 'Updated'],
+    ['unchanged', 'Already aligned'],
+    ['inserted', isPreview ? 'To add' : 'Added'],
+    ['not_in_slink', 'Ours, not in Slink'],
+    ['skipped_no_store_no', 'Skipped (no store no.)'],
+    ['skipped_duplicates', 'Skipped (duplicates)'],
+  ]
+}
+
 export default function DistrictsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
@@ -38,8 +67,18 @@ export default function DistrictsPage() {
 
   const fileInputRef = useRef(null)
 
-  const { districts, isLoading, isSubmitting, error, updateStatus, importDistricts } =
-    useDistricts()
+  const {
+    districts,
+    isLoading,
+    isSubmitting,
+    isSyncing,
+    syncResult,
+    error,
+    updateStatus,
+    importDistricts,
+    syncFromSlink,
+    clearSyncResult,
+  } = useDistricts()
 
   const handleEdit = useCallback((row) => {
     setSelectedDistrict(row)
@@ -49,6 +88,16 @@ export default function DistrictsPage() {
   const handleSelectionChange = useCallback((keys) => {
     setSelectedIds(keys)
   }, [])
+
+  // Preview: shows what would change, saves nothing.
+  const handlePreviewSync = useCallback(async () => {
+    await syncFromSlink({ dryRun: true })
+  }, [syncFromSlink])
+
+  // Real sync: aligns our stores with Slink and adds any that are missing.
+  const handleSyncFromSlink = useCallback(async () => {
+    await syncFromSlink({ dryRun: false })
+  }, [syncFromSlink])
 
   // Metrics calculation based on mdt_status
   const metrics = useMemo(() => {
@@ -60,14 +109,20 @@ export default function DistrictsPage() {
     return { total, active, inactive }
   }, [districts])
 
-  // Search & Filter supporting DB schema fields and sheet headers
+  // Search & Filter supporting DB schema fields and sheet headers.
+  // The API returns aliased keys (store_number, store_name, city_province),
+  // so those are accepted alongside the raw mdt_* names.
   const filteredDistricts = useMemo(() => {
     return districts.filter((item) => {
       const q = searchTerm.toLowerCase()
-      const storeNumber = String(item.mdt_store_number || item.code || '').toLowerCase()
-      const storeName = String(item.mdt_store_name || item.name || '').toLowerCase()
+      const storeNumber = String(
+        item.mdt_store_number || item.store_number || item.code || '',
+      ).toLowerCase()
+      const storeName = String(
+        item.mdt_store_name || item.store_name || item.name || '',
+      ).toLowerCase()
       const region = String(item.mdt_region || item.region || '').toLowerCase()
-      const cityProvince = String(item.mdt_city_province || '').toLowerCase()
+      const cityProvince = String(item.mdt_city_province || item.city_province || '').toLowerCase()
 
       const matchesSearch =
         storeNumber.includes(q) ||
@@ -96,10 +151,10 @@ export default function DistrictsPage() {
       headers.join(','),
       ...exportItems.map((item) =>
         [
-          `"${item.mdt_store_number || item.code || ''}"`,
-          `"${(item.mdt_store_name || item.name || '').replace(/"/g, '""')}"`,
+          `"${item.mdt_store_number || item.store_number || item.code || ''}"`,
+          `"${(item.mdt_store_name || item.store_name || item.name || '').replace(/"/g, '""')}"`,
           `"${(item.mdt_region || item.region || '').replace(/"/g, '""')}"`,
-          `"${(item.mdt_city_province || '').replace(/"/g, '""')}"`,
+          `"${(item.mdt_city_province || item.city_province || '').replace(/"/g, '""')}"`,
           `"${item.mdt_status || item.status || 'ACTIVE'}"`,
         ].join(','),
       ),
@@ -231,6 +286,9 @@ export default function DistrictsPage() {
     [statusFilter],
   )
 
+  const isBusy = isSubmitting || isSyncing
+  const isPreviewResult = Boolean(syncResult?.dry_run)
+
   return (
     <div className="w-full h-full flex-1 flex flex-col min-h-0 space-y-3 overflow-hidden">
       {/* Hidden File Input for Import */}
@@ -253,12 +311,20 @@ export default function DistrictsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <Button
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isSubmitting}
-          >
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Button variant="outline" onClick={handlePreviewSync} disabled={isBusy}>
+            <Eye className="w-3.5 h-3.5 text-slate-600 mr-1.5" />
+            Preview
+          </Button>
+          <Button variant="outline" onClick={handleSyncFromSlink} disabled={isBusy}>
+            {isSyncing ? (
+              <Loader2 className="w-3.5 h-3.5 text-[#E31837] mr-1.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5 text-[#E31837] mr-1.5" />
+            )}
+            {isSyncing ? 'Working...' : 'Sync from Slink'}
+          </Button>
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isBusy}>
             <FileUp className="w-3.5 h-3.5 text-blue-600 mr-1.5" />
             Import File
           </Button>
@@ -268,6 +334,110 @@ export default function DistrictsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Slink sync progress / result */}
+      {isSyncing && (
+        <div className="shrink-0 flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs font-medium text-slate-600">
+          <Loader2 className="w-4 h-4 text-[#E31837] animate-spin shrink-0" />
+          Reading stores from Slink page by page. This can take a moment...
+        </div>
+      )}
+
+      {syncResult && !isSyncing && (
+        <div
+          className={`shrink-0 max-h-64 overflow-y-auto rounded-xl border p-3 text-xs ${
+            !syncResult.success
+              ? 'bg-rose-50 border-rose-200 text-rose-900'
+              : isPreviewResult
+                ? 'bg-sky-50 border-sky-200 text-sky-900'
+                : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="font-bold">
+                {!syncResult.success
+                  ? isPreviewResult
+                    ? 'Preview failed'
+                    : 'Sync from Slink failed'
+                  : isPreviewResult
+                    ? 'Preview — nothing was saved'
+                    : 'Sync from Slink completed'}
+              </p>
+
+              {!syncResult.success && (
+                <p className="mt-0.5">
+                  {syncResult.message}
+                  {syncResult.error ? ` (${syncResult.error})` : ''}
+                </p>
+              )}
+
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 font-semibold">
+                {getSyncResultFields(syncResult)
+                  .filter(
+                    ([field]) => syncResult[field] !== undefined && syncResult[field] !== null,
+                  )
+                  .map(([field, label]) => (
+                    <span key={field}>
+                      {label}: {syncResult[field]}
+                    </span>
+                  ))}
+              </div>
+
+              {syncResult.warning && (
+                <p className="mt-1.5 font-semibold text-amber-700">⚠️ {syncResult.warning}</p>
+              )}
+
+              {syncResult.sample_changes?.length > 0 && (
+                <div className="mt-2">
+                  <p className="font-bold">
+                    {isPreviewResult ? 'Would add' : 'Added'} (in Slink, not in our list, first{' '}
+                    {syncResult.sample_missing.length}):
+                  </p>
+                  <ul className="mt-0.5 space-y-0.5 list-disc pl-4">
+                    {syncResult.sample_changes.map((item) => (
+                      <li key={`${item.store_number}-${item.changes.map((c) => c.field).join('')}`}>
+                        <span className="font-mono font-semibold">{item.store_number}</span>{' '}
+                        {item.changes.map((c) => (
+                          <span key={c.field} className="mr-2">
+                            {FIELD_LABELS[c.field] || c.field}: {showValue(c.from)} →{' '}
+                            <strong>{showValue(c.to)}</strong>
+                          </span>
+                        ))}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {syncResult.sample_missing?.length > 0 && (
+                <div className="mt-2">
+                  <p className="font-bold">
+                    In Slink but not in our list (first {syncResult.sample_missing.length}):
+                  </p>
+                  <ul className="mt-0.5 space-y-0.5 list-disc pl-4">
+                    {syncResult.sample_missing.map((item) => (
+                      <li key={item.store_number}>
+                        <span className="font-mono font-semibold">{item.store_number}</span>{' '}
+                        {showValue(item.store_name)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={clearSyncResult}
+              className="p-1 rounded-md hover:bg-black/5 cursor-pointer shrink-0"
+              title="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Metrics Banner */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0">
@@ -330,7 +500,7 @@ export default function DistrictsPage() {
             emptyMessage={
               searchTerm || statusFilter !== 'ALL'
                 ? 'No districts or stores match your search parameters.'
-                : 'No districts found. Import a CSV or XLSX to populate entries.'
+                : 'No districts found. Import a CSV or XLSX, or sync from Slink, to populate entries.'
             }
             footer={
               <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">

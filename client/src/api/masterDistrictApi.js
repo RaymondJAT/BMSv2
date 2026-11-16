@@ -1,5 +1,9 @@
 import { apiClient } from './axios'
 
+// The sync walks every Slink page on the server, so give it more room than
+// the default request.
+const SYNC_TIMEOUT_MS = 5 * 60 * 1000
+
 export const masterDistrictApi = {
   getAll: async () => {
     const response = await apiClient.get('/master-district')
@@ -29,6 +33,19 @@ export const masterDistrictApi = {
         'Content-Type': 'application/json',
       },
     })
+    return response.data
+  },
+
+  // Aligns our stores with Slink's (paginated on the server).
+  //   dryRun        -> preview only, nothing is saved
+  //   insertMissing -> also add Slink stores that are not in our list
+  // The route here must match the one you register for syncMasterDistrictFromSlink.
+  syncFromSlink: async ({ dryRun = false } = {}) => {
+    const response = await apiClient.post(
+      '/master-district/sync-slink',
+      { dry_run: dryRun },
+      { timeout: SYNC_TIMEOUT_MS },
+    )
     return response.data
   },
 }

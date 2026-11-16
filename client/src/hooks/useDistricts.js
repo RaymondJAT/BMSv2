@@ -5,6 +5,8 @@ export function useDistricts() {
   const [districts, setDistricts] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState(null)
   const [error, setError] = useState(null)
 
   const fetchDistricts = useCallback(async () => {
@@ -63,13 +65,55 @@ export function useDistricts() {
     [fetchDistricts],
   )
 
+  /**
+   * Aligns our stores with Slink's and keeps the server's summary in
+   * `syncResult` so the page can show what happened.
+   *   dryRun        -> preview only, nothing is saved (the list is not reloaded)
+   *   insertMissing -> also add Slink stores that are not in our list
+   * After a real sync the list is reloaded on success AND on failure,
+   * because pages saved before a failure are kept by the server.
+   */
+  const syncFromSlink = useCallback(
+    async ({ dryRun = false } = {}) => {
+      setIsSyncing(true)
+      setSyncResult(null)
+      try {
+        const data = await masterDistrictApi.syncFromSlink({ dryRun })
+        const result = { success: true, ...data }
+        setSyncResult(result)
+        if (!dryRun) await fetchDistricts()
+        return result
+      } catch (err) {
+        const body = err.response?.data || {}
+        const result = {
+          success: false,
+          dry_run: dryRun,
+          ...body,
+          message: body.message || err.message || 'Failed to sync districts from Slink',
+        }
+        setSyncResult(result)
+        if (!dryRun) await fetchDistricts()
+        return result
+      } finally {
+        setIsSyncing(false)
+      }
+    },
+    [fetchDistricts],
+  )
+
+  const clearSyncResult = useCallback(() => setSyncResult(null), [])
+
   return {
     districts,
     isLoading,
     isSubmitting,
+    isSyncing,
+    syncResult,
     error,
     refetch: fetchDistricts,
     updateStatus,
     importDistricts,
+    syncFromSlink,
+    clearSyncResult,
   }
 }
