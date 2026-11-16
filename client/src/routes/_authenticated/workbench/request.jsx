@@ -321,7 +321,7 @@ function CashRequestPage() {
   )
 
   /* ── Derived data & Folder Tabs ───────────────────────────────── */
-  const filteredRequests = useMemo(
+  const searchedRequests = useMemo(
     () => filterRequests(requests, { searchTerm, getEmployeeName }),
     [requests, searchTerm, getEmployeeName],
   )
@@ -342,6 +342,13 @@ function CashRequestPage() {
     ],
     [],
   )
+
+  // Filter requests based on the selected tab folder
+  const tabFilteredRequests = useMemo(() => {
+    const currentTab = tabsConfig.find((t) => t.key === activeTab)
+    if (!currentTab || !currentTab.filter) return searchedRequests
+    return searchedRequests.filter(currentTab.filter)
+  }, [searchedRequests, activeTab, tabsConfig])
 
   const columns = useMemo(
     () =>
@@ -420,6 +427,10 @@ function CashRequestPage() {
         searchPlaceholder="Search Reference, Project, Purpose, Requester..."
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
+        tabs={tabsConfig}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        data={searchedRequests}
       />
 
       <div className="flex-1 min-h-0 w-full overflow-hidden">
@@ -428,10 +439,7 @@ function CashRequestPage() {
         ) : (
           <DataTable
             columns={columns}
-            data={filteredRequests}
-            tabs={tabsConfig}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
+            data={tabFilteredRequests}
             keyExtractor={(row) => row.id}
             selectable
             selectedRows={selectedIds}
@@ -442,7 +450,7 @@ function CashRequestPage() {
             footer={
               <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
                 <span>
-                  Showing entries
+                  Showing {tabFilteredRequests.length} entries
                   {selectedIds.length > 0 && ` (${selectedIds.length} selected)`}
                 </span>
               </div>
