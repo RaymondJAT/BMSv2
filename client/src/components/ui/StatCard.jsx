@@ -1,18 +1,8 @@
 import React from 'react'
-import { motion } from 'framer-motion'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 /**
- * Reusable Compact Stat Card for Dashboard & Module Metrics
- *
- * @param {string} title (e.g. "Total Budget", "Requests")
- * @param {string|number} value (e.g. "₱1,250,000", "48")
- * @param {React.ElementType} [icon] Lucide icon component
- * @param {string} [subtitle] Secondary helper text (e.g. "vs. last month")
- * @param {string|number} [trend] Trend percentage or label (e.g. "+12.5%")
- * @param {'up'|'down'|'neutral'} [trendDirection='up'] Direction of trend indicator
- * @param {'red'|'blue'|'emerald'|'amber'|'purple'|'slate'} [variant='red'] Color theme
- * @param {boolean} [loading=false] Skeleton loader state
+ * Reusable Compact Stat Card with Subtly Faded Right-Side Watermark Icon (Non-Interactive)
  */
 export default function StatCard({
   title,
@@ -26,22 +16,22 @@ export default function StatCard({
 }) {
   const variants = {
     red: {
-      badge: 'bg-rose-50 text-rose-900 border-rose-200/80',
+      text: 'text-rose-600',
     },
     blue: {
-      badge: 'bg-blue-50 text-blue-600 border-blue-100/80',
+      text: 'text-blue-600',
     },
     emerald: {
-      badge: 'bg-emerald-50 text-emerald-600 border-emerald-100/80',
+      text: 'text-emerald-600',
     },
     amber: {
-      badge: 'bg-amber-50 text-amber-600 border-amber-100/80',
+      text: 'text-amber-600',
     },
     purple: {
-      badge: 'bg-purple-50 text-purple-600 border-purple-100/80',
+      text: 'text-purple-600',
     },
     slate: {
-      badge: 'bg-slate-100 text-slate-700 border-slate-200/80',
+      text: 'text-slate-600',
     },
   }
 
@@ -49,40 +39,32 @@ export default function StatCard({
 
   if (loading) {
     return (
-      <div className="animate-pulse rounded-xl border border-slate-200/80 bg-[#F9F6F0] p-3 shadow-2xs">
-        <div className="flex items-center justify-between">
-          <div className="h-3 w-20 rounded bg-slate-200/80" />
-          <div className="h-7 w-7 rounded-lg bg-slate-200/80" />
-        </div>
-        <div className="mt-2 h-5 w-28 rounded-md bg-slate-200/80" />
-        <div className="mt-2 h-2.5 w-16 rounded bg-slate-200/80" />
+      <div className="animate-pulse rounded-xl border border-slate-200/85 bg-white p-3.5 shadow-2xs">
+        <div className="h-3 w-20 rounded bg-slate-200/80 mb-2" />
+        <div className="h-5 w-28 rounded-md bg-slate-200/80 mb-2" />
+        <div className="h-2.5 w-16 rounded bg-slate-200/80" />
       </div>
     )
   }
 
   return (
-    <motion.div
-      whileHover={{ y: -1.5 }}
-      transition={{ duration: 0.15, ease: 'easeOut' }}
-      className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/80 bg-[#FFFFFF] p-3 shadow-2xs hover:shadow-xs hover:border-rose-900/20 transition-all duration-200"
-    >
-      {/* Top Row: Title & Icon Badge */}
-      <div className="flex items-center justify-between gap-1.5">
-        <span className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate">
+    <div className="relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/85 bg-white p-3.5 shadow-2xs">
+      {/* Peeping Watermark Icon on the Right Edge (Faded more with opacity-10) */}
+      {Icon && (
+        <Icon
+          className={`absolute -right-5 -bottom-5 w-24 h-24 ${selectedVariant.text} opacity-10 pointer-events-none select-none z-0`}
+        />
+      )}
+
+      {/* Top Row: Title */}
+      <div className="relative z-10">
+        <span className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider truncate block">
           {title}
         </span>
-
-        {Icon && (
-          <div
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-transform duration-200 group-hover:scale-105 ${selectedVariant.badge}`}
-          >
-            <Icon className="h-3.5 w-3.5" />
-          </div>
-        )}
       </div>
 
       {/* Center & Bottom: Main Metric Value & Trend/Subtitle */}
-      <div className="mt-1.5">
+      <div className="relative z-10 mt-1">
         <div className="text-base sm:text-lg lg:text-xl font-bold tracking-tight text-slate-900 wrap-break-word">
           {value}
         </div>
@@ -115,6 +97,6 @@ export default function StatCard({
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   )
 }

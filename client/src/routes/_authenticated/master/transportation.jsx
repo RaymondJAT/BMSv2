@@ -1,19 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useMemo, useCallback, useRef } from 'react'
-import Papa from 'papaparse'
+import { useState, useMemo, useCallback } from 'react'
 import DataTable from '../../../components/ui/DataTable'
 import StatCard from '../../../components/ui/StatCard'
 import Button from '../../../components/ui/Button'
 import TableToolbar from '../../../components/ui/TableToolbar'
-import {
-  FileSpreadsheet,
-  FileUp,
-  Truck,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  AlertCircle,
-} from 'lucide-react'
+import { Truck, CheckCircle2, XCircle, Loader2, AlertCircle, Plus } from 'lucide-react'
 import { createTransportationColumns } from '../../../table-columns/transportationColumns'
 import { useTransportation } from '../../../hooks/useTransportation'
 
@@ -33,17 +24,10 @@ export default function TransportationPage() {
   const [selectedIds, setSelectedIds] = useState([])
   const [selectedTransportation, setSelectedTransportation] = useState(null)
   const [isEditOpen, setIsEditOpen] = useState(false)
-
-  const fileInputRef = useRef(null)
+  const [isAddOpen, setIsAddOpen] = useState(false)
 
   // Custom hook for transportation data management
-  const {
-    transportationList = [],
-    isLoading,
-    isSubmitting,
-    error,
-    importTransportation,
-  } = useTransportation()
+  const { transportationList = [], isLoading, error } = useTransportation()
 
   const handleEdit = useCallback((row) => {
     setSelectedTransportation(row)
@@ -79,89 +63,6 @@ export default function TransportationPage() {
     })
   }, [transportationList, searchTerm, statusFilter])
 
-  // CSV Export Handler
-  const handleExportCSV = useCallback(() => {
-    const exportItems =
-      selectedIds.length > 0
-        ? transportationList.filter((item) => selectedIds.includes(item.mmot_id))
-        : filteredTransportation
-
-    if (!exportItems.length) return
-
-    const headers = ['mmot_id', 'mmot_name', 'mmot_status']
-    const csvRows = [
-      headers.join(','),
-      ...exportItems.map((item) =>
-        [
-          `"${item.mmot_id || ''}"`,
-          `"${(item.mmot_name || '').replace(/"/g, '""')}"`,
-          `"${item.mmot_status || 'ACTIVE'}"`,
-        ].join(','),
-      ),
-    ]
-
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.setAttribute('href', url)
-    link.setAttribute(
-      'download',
-      `transportation_export_${new Date().toISOString().slice(0, 10)}.csv`,
-    )
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }, [selectedIds, transportationList, filteredTransportation])
-
-  // PapaParse CSV Import Handler
-  const handleFileUpload = useCallback(
-    (e) => {
-      const file = e.target.files?.[0]
-      if (!file) return
-
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: 'greedy',
-        transformHeader: (h) =>
-          h
-            .replace(/^\uFEFF/, '')
-            .trim()
-            .toLowerCase(),
-        complete: async (results) => {
-          if (!results.data || results.data.length === 0) return
-
-          const parsedItems = results.data.map((rowObj) => {
-            const name =
-              rowObj.mmot_name ||
-              rowObj.name ||
-              rowObj['transportation name'] ||
-              rowObj['mode of transportation'] ||
-              rowObj.mode
-            const status = rowObj.mmot_status || rowObj.status
-
-            return {
-              mmot_name: name ? String(name).trim() : 'Unnamed Mode',
-              mmot_status: status ? String(status).trim().toUpperCase() : 'ACTIVE',
-            }
-          })
-
-          try {
-            await importTransportation(parsedItems)
-          } catch (err) {
-            console.error('Import Error:', err)
-          } finally {
-            if (fileInputRef.current) fileInputRef.current.value = ''
-          }
-        },
-        error: (err) => {
-          console.error('PapaParse error:', err)
-          if (fileInputRef.current) fileInputRef.current.value = ''
-        },
-      })
-    },
-    [importTransportation],
-  )
-
   const columns = useMemo(() => createTransportationColumns({ onEdit: handleEdit }), [handleEdit])
 
   const toolbarFilters = useMemo(
@@ -179,15 +80,6 @@ export default function TransportationPage() {
 
   return (
     <div className="w-full h-full flex-1 flex flex-col min-h-0 space-y-3 overflow-hidden">
-      {/* Hidden File Input for Import */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileUpload}
-        accept=".csv"
-        className="hidden"
-      />
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0">
         <div>
@@ -201,16 +93,12 @@ export default function TransportationPage() {
 
         <div className="flex items-center gap-2 shrink-0">
           <Button
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isSubmitting}
+            variant="primary"
+            onClick={() => setIsAddOpen(true)}
+            className="bg-[#4A0404] hover:bg-[#3B0303] text-white"
           >
-            <FileUp className="w-3.5 h-3.5 text-blue-600 mr-1.5" />
-            Import CSV
-          </Button>
-          <Button variant="outline" onClick={handleExportCSV}>
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 mr-1.5" />
-            Export
+            <Plus className="w-3.5 h-3.5 mr-1.5 stroke-[2.5]" />
+            Add Transportation
           </Button>
         </div>
       </div>
@@ -240,7 +128,7 @@ export default function TransportationPage() {
         />
       </div>
 
-      {/* Toolbar & Filters (Date range omitted automatically) */}
+      {/* Toolbar & Filters */}
       <TableToolbar
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
@@ -278,7 +166,7 @@ export default function TransportationPage() {
             emptyMessage={
               searchTerm || statusFilter !== 'ALL'
                 ? 'No transportation modes match your search parameters.'
-                : 'No transportation modes found. Import a CSV to populate entries.'
+                : 'No transportation modes found.'
             }
             footer={
               <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">

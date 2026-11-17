@@ -159,10 +159,6 @@ function AccessPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline">
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 mr-1.5" />
-            Export
-          </Button>
           <Button variant="primary" onClick={handleCreate}>
             <Plus className="w-3.5 h-3.5 mr-1.5" />
             Add Role

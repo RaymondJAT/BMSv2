@@ -147,7 +147,7 @@ export const NAVIGATION_ITEMS = [
       {
         id: 'report-budget',
         title: 'Budget Reports',
-        to: '/reports/report-budget',
+        to: '/reports/reportBudget',
         permissionKey: 'report-budget',
       },
       {

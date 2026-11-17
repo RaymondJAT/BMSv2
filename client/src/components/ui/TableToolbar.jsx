@@ -9,7 +9,6 @@ export default function TableToolbar({
   dateRange,
   onDateRangeChange,
   children,
-  // Tab / Folder Props
   tabs = [],
   activeTab,
   onTabChange,
@@ -42,15 +41,17 @@ export default function TableToolbar({
                 >
                   <span>{tab.label}</span>
 
-                  <span
-                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums transition-colors duration-200 ${
-                      isActive
-                        ? 'bg-rose-50 text-[#E31837] ring-1 ring-inset ring-rose-200'
-                        : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80 group-hover:text-slate-700'
-                    }`}
-                  >
-                    {count}
-                  </span>
+                  {count !== null && (
+                    <span
+                      className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums transition-colors duration-200 ${
+                        isActive
+                          ? 'bg-rose-50 text-[#E31837] ring-1 ring-inset ring-rose-200'
+                          : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80 group-hover:text-slate-700'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
 
                   {/* Bottom Active Tab Indicator Bar */}
                   <span
@@ -70,16 +71,18 @@ export default function TableToolbar({
 
         {/* Right Side: Search bar, DatePicker, and Filters */}
         <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto sm:pb-2">
-          <div className="relative w-full sm:w-72">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder={searchPlaceholder}
-              value={searchTerm}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E31837] focus:border-transparent transition-all"
-            />
-          </div>
+          {onSearchChange && (
+            <div className="relative w-full sm:w-72">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder={searchPlaceholder}
+                value={searchTerm}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E31837] focus:border-transparent transition-all"
+              />
+            </div>
+          )}
 
           {onDateRangeChange && <DateRangePicker value={dateRange} onChange={onDateRangeChange} />}
 
